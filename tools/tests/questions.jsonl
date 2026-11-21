@@ -93,6 +93,16 @@
 {"q":"how many days off are left","today":"2026-11-20","resolver":"list_occurrences","contains":["still to come"]}
 {"_":"A single-day question must still answer about that day, not turn into a list."}
 {"q":"is today an early dismissal","today":"2026-11-20","resolver":"day_schedule","contains":["No","November 20"],"notContains":["still to come"]}
+{"_":"--- named days. 'is there school on christmas eve' once answered 'yes, open on November 23': the words were not understood, the date silently fell back to today, and a parent was told school was open on a day the district is closed. ---"}
+{"q":"is there school on christmas eve","today":"2026-11-23","resolver":"school_status","contains":["December 24, 2026","closed"],"notContains":["November 23"]}
+{"q":"is there school on christmas","today":"2026-11-23","contains":["December 25, 2026","closed"]}
+{"q":"is there school on halloween","today":"2026-11-23","contains":["October 31"]}
+{"_":"A day we cannot work out must say so, never quietly answer about today."}
+{"q":"is there school on some random day","today":"2026-11-23","resolver":"school_status","contains":["not sure which day"],"notContains":["open on Monday"]}
+{"q":"is there school on the day after the thing","today":"2026-11-23","contains":["not sure which day"]}
+{"_":"Asking what the rules are is not asking what today is."}
+{"q":"what is the snow day policy","today":"2026-11-23","notContains":["is open on Monday, November 23"]}
+{"q":"what is the attendance policy","today":"2026-11-23","notContains":["is open on Monday, November 23"]}
 {"_":"--- robustness: these must answer, not crash ---"}
 {"q":"","today":"2026-11-20","contains":["Ask me"]}
 {"q":"asdfghjkl qwerty","today":"2026-11-20","contains":[""]}

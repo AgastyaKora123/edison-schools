@@ -283,6 +283,17 @@
       if (d) return { start: d, end: d, isRange: false, phrase: `${g[1]}/${g[2]}` };
     }
 
+    // 5b. named holidays. The calendar wins where it names the day itself, so
+    //     "thanksgiving" lands on Thanksgiving Recess, not a bare date.
+    const hol = R.holidays || {};
+    for (const n of Object.keys(hol).sort((a, b) => b.length - a.length)) {
+      if (!containsPhrase(norm, n)) continue;
+      const md = hol[n];
+      if (!md || md.length < 2) continue;
+      const d = this.resolveMonthDay(+md[0], +md[1], 0, today);
+      if (d) return { start: d, end: d, isRange: false, phrase: n };
+    }
+
     // 6. weekday names
     const wd = R.weekdays || {};
     const wdKeys = Object.keys(wd).sort((a, b) => b.length - a.length);
@@ -577,7 +588,24 @@
   const HOURS_URL = 'https://www.edison.k12.nj.us/page/school-hours/';
   const FEED_URL = 'https://www.edison.k12.nj.us/live-feed/';
 
+  /**
+   * Did the question name a particular day we failed to work out?
+   *
+   * "Is there school on christmas eve" used to answer "yes, open on Monday
+   * November 23" — the words were not understood, the date quietly fell back
+   * to today, and the answer was confidently wrong about a day the district
+   * is closed. Saying "I'm not sure which day you mean" is far better.
+   */
+  AnswerEngine.prototype.asksAboutSomeOtherDay = function (norm) {
+    return (this.rules.dayHints || []).some((h) => norm.indexOf(String(h)) >= 0);
+  };
+
   AnswerEngine.prototype.rSchoolStatus = function (ctx) {
+    if (!ctx.date && this.asksAboutSomeOtherDay(ctx.norm)) {
+      return mk('I\'m not sure which day you mean. Try naming the date — ' +
+                '"is there school on December 24" — or ask about today or tomorrow.',
+                'school_status', 'unclear_date', [CAL_URL], 0.2);
+    }
     const slot = ctx.date || { start: ctx.today, end: ctx.today, isRange: false, phrase: 'today' };
     const label = ctx.school ? ctx.school.name : 'Edison schools';
     const isAre = ctx.school ? 'is' : 'are';
@@ -1135,6 +1163,14 @@
     // times for the day we were discussing, not repeat the whole answer.
     if (followUp && previous && previous.resolver && !this.namesOwnTopic(norm)) {
       if (!top || top.score < 3) resolver = previous.resolver;
+    }
+
+    // Asking what the rules ARE is a different question from asking what
+    // today is. "What is the snow day policy" was being answered "yes, school
+    // is open today" — it matched on "school" and "snow" and had no date.
+    if (!ctx.date &&
+        /\b(policy|policies|procedure|protocol|rules? (for|about|on)|how does .{0,20}work)\b/.test(norm)) {
+      resolver = 'fact_search';
     }
 
     if (ctx.break_ && !containsPhrase(norm, 'next')) resolver = 'break_dates';

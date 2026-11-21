@@ -196,6 +196,20 @@ function Resolve-DateSlot {
         if ($d) { return New-DateSlot $d $d 'day' $m.Value }
     }
 
+    # 4b. named holidays. The calendar wins where it names the day itself, so
+    #     "thanksgiving" lands on Thanksgiving Recess rather than a bare date.
+    $hol = D $Rules 'holidays'
+    if ($hol) {
+        $names = @($hol.Keys) | Sort-Object { -$_.Length }
+        foreach ($n in $names) {
+            if (-not (Test-ContainsPhrase $Norm $n)) { continue }
+            $md = @(DA $hol $n)
+            if ($md.Count -lt 2) { continue }
+            $d = Resolve-MonthDay -Month ([int]$md[0]) -Day ([int]$md[1]) -Year 0 -Today $Today
+            if ($d) { return New-DateSlot $d $d 'day' $n }
+        }
+    }
+
     # 5. weekday names.  "next friday" = first Friday strictly after today;
     #    bare / "this" friday = first Friday from today onward.
     $wd = D $Rules 'weekdays'
@@ -814,10 +828,34 @@ function New-Answer {
 
 # ================================================================ resolvers
 
+function Test-AsksAboutSomeOtherDay {
+    <#
+      Did the question name a particular day that we failed to work out?
+
+      "Is there school on christmas eve" used to answer "yes, open on Monday
+      November 23" - the words were not understood, the date quietly fell back
+      to today, and the answer was confidently wrong about a day the district
+      is closed. Saying "I'm not sure which day you mean" is far better.
+    #>
+    param([string] $Norm, $Rules)
+    foreach ($h in (DA $Rules 'dayHints')) {
+        if ($Norm -match [regex]::Escape([string]$h)) { return $true }
+    }
+    return $false
+}
+
 function Invoke-Resolver-SchoolStatus {
     param($Pack, $Rules, $Ctx)
     $slot = $Ctx.Date
-    if (-not $slot) { $slot = New-DateSlot $Ctx.Today $Ctx.Today 'day' 'today' }
+    if (-not $slot) {
+        if (Test-AsksAboutSomeOtherDay -Norm $Ctx.Norm -Rules $Rules) {
+            return New-Answer -Text ("I'm not sure which day you mean. Try naming the date - " +
+                                     '"is there school on December 24" - or ask about today or tomorrow.') `
+                              -Intent 'school_status' -Kind 'unclear_date' -Confidence 0.2 `
+                              -Sources @('https://www.edison.k12.nj.us/page/district-yearly-calendar/')
+        }
+        $slot = New-DateSlot $Ctx.Today $Ctx.Today 'day' 'today'
+    }
 
     $school = $Ctx.School
     $label  = if ($school) { [string](D $school 'name') } else { 'Edison schools' }
@@ -1536,6 +1574,13 @@ function Invoke-Query {
     if ($isFollowUp -and $Previous -and [string]$Previous.Resolver -and
         -not (Test-NamesOwnTopic -Norm $norm -Pack $Pack -Rules $Rules)) {
         if (-not $top -or $top.Score -lt 3.0) { $resolver = [string]$Previous.Resolver }
+    }
+
+    # Asking what the rules ARE is a different question from asking what today
+    # is. "What is the snow day policy" was being answered "yes, school is
+    # open today" - it matched on "school" and "snow" and then had no date.
+    if ($norm -match '\b(policy|policies|procedure|protocol|rules? (for|about|on)|how does .{0,20}work)\b' -and -not $ctx.Date) {
+        $resolver = 'fact_search'
     }
 
     if ($ctx.Break -and $norm -notmatch '(?<![a-z])next(?![a-z])') { $resolver = 'break_dates' }

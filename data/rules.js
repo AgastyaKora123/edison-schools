@@ -31,6 +31,28 @@ window.RULES = {
     "october": 10, "oct": 10, "november": 11, "nov": 11, "december": 12, "dec": 12
   },
 
+  "_holidays": "Named days parents ask about that are not on the district's calendar by that name. Each is month/day; the engine still checks the calendar first, so 'thanksgiving' finds Thanksgiving Recess rather than landing on the 4th Thursday.",
+  "holidays": {
+    "christmas eve":      [12, 24],
+    "christmas day":      [12, 25],
+    "christmas":          [12, 25],
+    "new years eve":      [12, 31],
+    "new year's eve":     [12, 31],
+    "new years day":      [1, 1],
+    "new year's day":     [1, 1],
+    "halloween":          [10, 31],
+    "valentines day":     [2, 14],
+    "valentine's day":    [2, 14],
+    "st patricks day":    [3, 17],
+    "veterans day":       [11, 11],
+    "independence day":   [7, 4],
+    "juneteenth":         [6, 19],
+    "april fools":        [4, 1]
+  },
+
+  "_unparsedDay": "Words that promise a specific day. If one of these is present and no date could be worked out, the engine must NOT quietly answer about today - that is how 'is there school on christmas eve' became 'yes, open on November 23'.",
+  "dayHints": ["on ", "holiday", "eve", "day of", "break", "recess", "vacation", "weekend"],
+
   "breaks": {
     "spring break":       ["spring recess", "spring break"],
     "winter break":       ["winter break", "winter recess", "christmas break", "holiday break"],
