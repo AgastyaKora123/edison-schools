@@ -1,0 +1,128 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<title>Privacy — School Answers</title>
+<meta name="description" content="School Answers collects nothing about you. Everything you choose stays on your own phone.">
+<style>
+  :root {
+    color-scheme: light dark;
+    --paper: #f7f8f7;
+    --card: #fff;
+    --ink: #16191c;
+    --ink-soft: #52606d;
+    --line: #e2e6e9;
+    --accent: #1b3a57;
+  }
+  :root:not([data-theme="light"]) {
+    @media (prefers-color-scheme: dark) {
+      --paper: #14171a; --card: #1b1f23; --ink: #e8eaed;
+      --ink-soft: #a3adb8; --line: #2b3137; --accent: #8fb6d6;
+    }
+  }
+  @media (prefers-color-scheme: dark) {
+    :root:not([data-theme="light"]) {
+      --paper: #14171a; --card: #1b1f23; --ink: #e8eaed;
+      --ink-soft: #a3adb8; --line: #2b3137; --accent: #8fb6d6;
+    }
+  }
+  :root[data-theme="dark"] {
+    --paper: #14171a; --card: #1b1f23; --ink: #e8eaed;
+    --ink-soft: #a3adb8; --line: #2b3137; --accent: #8fb6d6;
+  }
+  * { box-sizing: border-box; }
+  body {
+    margin: 0; padding: 32px 16px 64px;
+    background: var(--paper); color: var(--ink);
+    font: 16px/1.65 ui-serif, Georgia, "Times New Roman", serif;
+  }
+  main { max-width: 38rem; margin: 0 auto; }
+  h1 { font-size: 28px; line-height: 1.25; margin: 0 0 4px; letter-spacing: -0.01em; }
+  .sub { color: var(--ink-soft); margin: 0 0 32px; font-size: 15px; }
+  h2 {
+    font: 600 13px/1.4 ui-sans-serif, system-ui, -apple-system, "Segoe UI", sans-serif;
+    letter-spacing: 0.08em; text-transform: uppercase; color: var(--ink-soft);
+    margin: 32px 0 8px;
+  }
+  p { margin: 0 0 14px; }
+  ul { margin: 0 0 14px; padding-left: 1.25rem; }
+  li { margin: 0 0 7px; }
+  .box {
+    background: var(--card); border: 1px solid var(--line);
+    border-radius: 14px; padding: 18px 20px; margin: 0 0 8px;
+  }
+  .box p:last-child { margin-bottom: 0; }
+  strong { font-weight: 600; }
+  a { color: var(--accent); text-underline-offset: 3px; }
+  footer {
+    margin-top: 40px; padding-top: 18px; border-top: 1px solid var(--line);
+    color: var(--ink-soft); font-size: 14px;
+  }
+</style>
+</head>
+<body>
+<main>
+  <h1>Privacy</h1>
+  <p class="sub">School Answers &middot; last updated 21 November 2026</p>
+
+  <div class="box">
+    <p><strong>This app collects nothing about you.</strong> There is no account,
+    no sign-in, no analytics and no server of ours. Nothing you type and nothing
+    you choose is ever sent anywhere.</p>
+  </div>
+
+  <h2>What stays on your phone</h2>
+  <p>Three things, kept only in your own browser or app storage:</p>
+  <ul>
+    <li>Which district you picked.</li>
+    <li>Which schools your children attend.</li>
+    <li>A copy of that district's calendar, so the app still answers with no signal.</li>
+  </ul>
+  <p>Clearing your browser data, or deleting the app, removes all of it. We
+  cannot see any of it and could not retrieve it if you asked.</p>
+
+  <h2>What the app fetches</h2>
+  <p>To answer, the app reads information your school district already publishes
+  openly on the internet &mdash; its calendar and its announcements. Those
+  requests go directly from your phone to the service your district's website
+  runs on. They carry no name, no account and no identifier for you, only the
+  district's own public reference number.</p>
+  <p>That service will see the ordinary things any website sees when a browser
+  visits it, such as an address on the internet. We neither receive nor store
+  that.</p>
+
+  <h2>Asking Schoolo a question</h2>
+  <p>If you use Schoolo, the conversational part of the app, your question and
+  the dates and times the app looked up are sent to Anthropic to be answered,
+  and are handled under
+  <a href="https://www.anthropic.com/legal/privacy" rel="noopener">Anthropic's
+  privacy policy</a>. Your children's names are never part of that, because the
+  app never asks for them. If you would rather nothing left your phone at all,
+  do not use Schoolo: every other answer in the app is worked out on the device.</p>
+
+  <h2>Children</h2>
+  <p>This app is for parents and carers, not for children, and it asks for no
+  personal information from anyone. It holds no names, no ages, no photographs
+  and no school records &mdash; only which schools you ticked, which is a setting
+  on your own phone.</p>
+
+  <h2>Advertising and selling</h2>
+  <p>There is no advertising in this app, there are no trackers, and there is
+  nothing to sell. No data about you is shared with anyone, because none is
+  collected.</p>
+
+  <h2>Who made this</h2>
+  <p>This is an unofficial app made by a parent. It is not affiliated with,
+  endorsed by, or operated by any school district. For same-day closings, your
+  district's own notifications and website are the official word.</p>
+
+  <h2>Changes</h2>
+  <p>If this policy ever changes, the date at the top changes with it.</p>
+
+  <footer>
+    <p><a href="./">Back to the app</a></p>
+  </footer>
+</main>
+</body>
+</html>
