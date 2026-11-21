@@ -518,6 +518,16 @@
         else if (fsid) continue;
       } else if (fsid) score *= 0.7;
 
+      // Staff pages (payroll, certification, tuition reimbursement) are in the
+      // pack so the app covers everything the district publishes, but a
+      // parent's question should not be answered from one unless they clearly
+      // asked about it. If the query terms overlap the page's own title, the
+      // penalty lifts.
+      if (d.fact.audience === 'staff') {
+        const deliberate = terms.some((t) => containsPhrase(d.title, t));
+        if (!deliberate) score *= 0.2;
+      }
+
       scored.push({ fact: d.fact, score: score });
     }
     scored.sort((a, b) => b.score - a.score);
@@ -936,7 +946,62 @@
 
   // ---------------------------------------------------------------- entry
 
-  AnswerEngine.prototype.answer = function (query, today, defaultSchoolId) {
+  /**
+   * Is this question leaning on the one before it?
+   * Either it opens like a follow-up ("what about Tuesday", "and Friday?"),
+   * or it is too short to stand alone ("what time?", "Lincoln?").
+   */
+  /**
+   * Does this question name a topic of its own?
+   *
+   * "What about Tuesday?" does not — it is pure reference, and means whatever
+   * the last question meant. "What about transportation?" does, and must not
+   * be answered as if it were still about school closing times.
+   *
+   * Anything left after removing filler, dates and school names counts.
+   */
+  AnswerEngine.prototype.namesOwnTopic = function (norm) {
+    const dateish = new Set(
+      Object.keys(this.rules.dateWords || {})
+        .concat(Object.keys(this.rules.weekdays || {}))
+        .concat(Object.keys(this.rules.months || {}))
+        .concat(['week', 'month', 'day', 'today', 'tomorrow', 'next', 'this', 'last'])
+    );
+    const schoolWords = new Set();
+    for (const s of (this.pack.schools || [])) {
+      for (const term of [s.name, s.shortName].concat(s.aliases || [])) {
+        for (const w of tokens(String(term).toLowerCase())) schoolWords.add(w);
+      }
+    }
+    for (const w of tokens(norm)) {
+      if (STOP.has(w)) continue;
+      if (dateish.has(w)) continue;
+      if (schoolWords.has(w)) continue;
+      if (/^\d+(st|nd|rd|th)?$/.test(w)) continue;
+      return true;
+    }
+    return false;
+  };
+
+  function isFollowUpQuery(norm) {
+    if (/^(what|how) about\b/.test(norm)) return true;
+    if (/^(and|but|ok|okay|so)\b/.test(norm)) return true;
+    if (/^what if\b/.test(norm)) return true;
+    if (/^(then|also)\b/.test(norm)) return true;
+    const words = tokens(norm);
+    if (words.length <= 3 &&
+        !/\b(is|are|do|does|can|when|where|who|how)\b.*\b(school|open|closed)\b/.test(norm)) {
+      return true;
+    }
+    return false;
+  }
+
+  /**
+   * @param previous  what the last question settled on, from the previous
+   *                  answer's `context`. Lets "what time?" mean "what time on
+   *                  the day we were just talking about".
+   */
+  AnswerEngine.prototype.answer = function (query, today, defaultSchoolId, previous) {
     const norm = normalize(query);
     const t = today || this.today();
 
@@ -959,9 +1024,47 @@
       break_: this.resolveBreak(norm)
     };
 
+    // "Is there school tomorrow?" then "what time?" is one conversation, not
+    // two unrelated questions. A follow-up borrows whatever the last question
+    // settled and this one leaves out.
+    const followUp = isFollowUpQuery(norm);
+    if (previous) {
+      // "and the 27th?" means the 27th of the month we were just discussing.
+      if (!ctx.date && previous.dateStart) {
+        const ord = /(?:^|[^0-9])(\d{1,2})(?:st|nd|rd|th)(?![a-z0-9])/.exec(norm);
+        const prev = fromISO(previous.dateStart);
+        if (ord && prev) {
+          const day = +ord[1];
+          const cand = anchor(prev.getUTCFullYear(), prev.getUTCMonth() + 1, day);
+          if (cand.getUTCDate() === day) {
+            ctx.date = { start: cand, end: cand, isRange: false, phrase: ord[1] };
+          }
+        }
+      }
+      if (!ctx.date && followUp && previous.dateStart) {
+        ctx.date = {
+          start: fromISO(previous.dateStart),
+          end: fromISO(previous.dateEnd) || fromISO(previous.dateStart),
+          isRange: !!previous.dateIsRange,
+          phrase: previous.datePhrase || ''
+        };
+      }
+      if (!ctx.school && previous.schoolId) {
+        ctx.school = (this.pack.schools || []).find((s) => s.id === previous.schoolId) || null;
+      }
+    }
+
     const scores = this.intentScores(norm);
     const top = scores[0];
     let resolver = (top && top.score >= 3) ? top.resolver : 'fact_search';
+
+    // "What about Tuesday?" carries no topic of its own — it means whatever
+    // the last question meant. Borrow only when this question showed no
+    // intent at all: "what time?" names its own topic and should give the
+    // times for the day we were discussing, not repeat the whole answer.
+    if (followUp && previous && previous.resolver && !this.namesOwnTopic(norm)) {
+      if (!top || top.score < 3) resolver = previous.resolver;
+    }
 
     if (ctx.break_ && !containsPhrase(norm, 'next')) resolver = 'break_dates';
     else if ((containsPhrase(norm, 'next') || containsPhrase(norm, 'upcoming')) && ctx.scheduleKind && !ctx.date) {
@@ -981,10 +1084,22 @@
       topIntent: top ? top.id : '',
       topScore: top ? top.score : 0,
       dateSlot: ctx.date ? `${isoOf(ctx.date.start)}..${isoOf(ctx.date.end)} (${ctx.date.phrase})` : '',
-      schoolSlot: school ? school.id : '',
+      // ctx.school, not the local `school`: a follow-up can adopt the school
+      // from the previous question after that local was set.
+      schoolSlot: ctx.school ? ctx.school.id : '',
       levelSlot: ctx.level || '',
       scheduleSlot: ctx.scheduleKind || '',
-      breakSlot: ctx.break_ || ''
+      breakSlot: ctx.break_ || '',
+      followUp: followUp
+    };
+    // Pass this back in as `previous` on the next question.
+    out.context = {
+      resolver: resolver,
+      dateStart: ctx.date ? isoOf(ctx.date.start) : '',
+      dateEnd: ctx.date ? isoOf(ctx.date.end) : '',
+      dateIsRange: ctx.date ? !!ctx.date.isRange : false,
+      datePhrase: ctx.date ? ctx.date.phrase : '',
+      schoolId: ctx.school ? ctx.school.id : ''
     };
     return out;
   };

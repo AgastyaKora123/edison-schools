@@ -24,9 +24,22 @@
     set(k, v) { try { localStorage.setItem(k, v); } catch (e) { /* ignore */ } }
   };
 
-  let schoolId = store.get('schoolId', '');
+  // A family can have children at more than one school. Older versions saved a
+  // single id; carry that forward rather than losing the setting.
+  let schoolIds = (function () {
+    const many = store.get('schoolIds', '');
+    if (many) return many.split(',').filter(Boolean);
+    const one = store.get('schoolId', '');
+    return one ? [one] : [];
+  })();
+  const saveSchools = () => store.set('schoolIds', schoolIds.join(','));
+
   let liveAlerts = [];
   let alertStatus = { state: 'idle', at: null, note: '' };
+
+  // What the last question settled on, kept per school so a follow-up means
+  // the same thing for each child.
+  let lastContext = {};
 
   const engine = () => {
     const p = Object.assign({}, PACK);
@@ -40,6 +53,35 @@
 
   function esc(s) {
     return String(s).replace(/[&<>"]/g, (c) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;' }[c]));
+  }
+
+  /**
+   * Turns phone numbers and email addresses in an answer into things you can
+   * tap. "Report an absence" becomes one tap to call instead of copying a
+   * number out by hand — the kind of thing a website chatbot cannot give you.
+   *
+   * Built with real nodes rather than assembled markup, so answer text can
+   * never be interpreted as HTML.
+   */
+  function fillLinkified(parent, text) {
+    const re = /(\b\d{3}[-.\s]\d{3}[-.\s]\d{4}(?:\s*(?:x|ext\.?)\s*\d{2,6})?)|([A-Za-z0-9._%+-]+@[A-Za-z0-9.-]+\.[A-Za-z]{2,})/g;
+    let last = 0, m;
+    while ((m = re.exec(text)) !== null) {
+      if (m.index > last) parent.appendChild(document.createTextNode(text.slice(last, m.index)));
+      const a = document.createElement('a');
+      if (m[1]) {
+        const digits = m[1].replace(/[^\d]/g, '');
+        const ext = /(?:x|ext\.?)\s*(\d{2,6})/i.exec(m[1]);
+        a.href = 'tel:+1' + digits.slice(0, 10) + (ext ? ',' + ext[1] : '');
+      } else {
+        a.href = 'mailto:' + m[2];
+      }
+      a.textContent = m[0];
+      a.className = 'tapable';
+      parent.appendChild(a);
+      last = m.index + m[0].length;
+    }
+    if (last < text.length) parent.appendChild(document.createTextNode(text.slice(last)));
   }
 
   /**
@@ -80,7 +122,7 @@
         if (!text) continue;
         const p = document.createElement('div');
         p.className = 'body';
-        p.textContent = text;
+        fillLinkified(p, text);
         node.appendChild(p);
       } else {
         const h = document.createElement('div');
@@ -147,28 +189,158 @@
     const q = String(text || '').trim();
     if (!q) return;
 
-    el('intro') && el('intro').remove();
-    el('try-label') && el('try-label').remove();
-    el('chips') && el('chips').remove();
+    // Hidden, not removed, so tapping the title brings the glance back.
+    for (const id of ['glance', 'intro', 'try-label', 'chips', 'disclaimer']) {
+      const n = el(id);
+      if (n) n.hidden = true;
+    }
 
     const qn = document.createElement('div');
     qn.className = 'q';
     qn.textContent = q;
     wrap.appendChild(qn);
 
-    let a;
     try {
-      a = engine().answer(q, undefined, schoolId);
+      const eng = engine();
+      // With children at several schools, answer for each and show the
+      // answer once if they agree. Two children at the same level usually
+      // get one answer; an elementary and a high schooler get two, which is
+      // exactly what the parent needs to see.
+      const ids = schoolIds.length ? schoolIds : [''];
+      const results = ids.map((id) => ({
+        id: id,
+        a: eng.answer(q, undefined, id, lastContext[id] || null)
+      }));
+      for (const r of results) lastContext[r.id] = r.a.context;
+
+      const unique = [];
+      for (const r of results) {
+        const same = unique.find((u) => u.a.answer === r.a.answer);
+        if (same) same.ids.push(r.id);
+        else unique.push({ a: r.a, ids: [r.id] });
+      }
+
+      for (const u of unique) {
+        if (unique.length > 1) {
+          const names = u.ids.map((id) => {
+            const s = schoolById(id);
+            return s ? s.shortName : 'All schools';
+          }).join(' · ');
+          const lbl = document.createElement('div');
+          lbl.className = 'ans-school';
+          lbl.textContent = names;
+          wrap.appendChild(lbl);
+        }
+        wrap.appendChild(renderAnswer(u.a));
+      }
     } catch (err) {
-      a = { answer: 'Something went wrong answering that. Try rewording it.',
-            intent: 'error', kind: 'error', sources: [], confidence: 0 };
+      wrap.appendChild(renderAnswer({
+        answer: 'Something went wrong answering that. Try rewording it.',
+        intent: 'error', kind: 'error', sources: [], confidence: 0
+      }));
       if (window.console) console.error(err);
     }
-    wrap.appendChild(renderAnswer(a));
 
     el('ask').value = '';
     autosize();
     requestAnimationFrame(() => { thread.scrollTop = thread.scrollHeight; });
+  }
+
+  // ---------------------------------------------------------------- glance
+
+  /**
+   * The opening view answers the two questions a parent has before they have
+   * thought of a question: is there school, and what time. A chatbot on a
+   * website cannot do this — it waits to be asked.
+   *
+   * Today is always shown. Tomorrow is shown too, because by evening that is
+   * the one that matters, and because a closing announced this afternoon is
+   * about tomorrow.
+   */
+  function renderGlance() {
+    const box = el('glance');
+    if (!box) return;
+    box.innerHTML = '';
+
+    const eng = engine();
+    const today = eng.today();
+    const days = [
+      { when: 'Today', date: today },
+      { when: 'Tomorrow', date: E.addDays(today, 1) }
+    ];
+
+    const card = document.createElement('div');
+    card.className = 'glance';
+
+    days.forEach((d, idx) => {
+      const schools = schoolIds.length ? schoolIds.map(schoolById).filter(Boolean) : [null];
+      const infos = schools.map((s) => ({ school: s, info: eng.dayInfo(d.date, s) }));
+
+      // The worst status across the children drives the headline, so a
+      // closure at one school is never hidden behind "open" at another.
+      const rank = { closed: 3, delayed_opening: 2, early_dismissal: 1, weekend: 3, regular: 0, unknown: 0 };
+      const worst = infos.slice().sort((a, b) => (rank[b.info.kind] || 0) - (rank[a.info.kind] || 0))[0].info;
+
+      let tone = 'ok', head = 'School is open';
+      if (worst.kind === 'weekend') { tone = 'bad'; head = 'No school'; }
+      else if (worst.kind === 'closed') { tone = 'bad'; head = 'No school'; }
+      else if (worst.kind === 'delayed_opening') { tone = 'warn'; head = 'Delayed opening'; }
+      else if (worst.kind === 'early_dismissal') { tone = 'warn'; head = 'Early dismissal'; }
+      else if (worst.kind === 'unknown') { tone = 'ok'; head = 'Not on the calendar'; }
+
+      const day = document.createElement('div');
+      day.className = 'glance-day' + (idx > 0 ? ' muted' : '');
+
+      const when = document.createElement('div');
+      when.className = 'glance-when';
+      when.innerHTML = esc(d.when) + ' <em>' + esc(E.dateShort(d.date)) + '</em>';
+      day.appendChild(when);
+
+      const h = document.createElement('div');
+      h.className = 'glance-head ' + tone;
+      h.innerHTML = '<span class="dot"></span>' + esc(head);
+      day.appendChild(h);
+
+      // Times, per school when they differ.
+      if (worst.kind !== 'weekend' && worst.kind !== 'closed') {
+        const rows = document.createElement('div');
+        rows.className = 'glance-rows';
+        const seen = [];
+        for (const { school, info } of infos) {
+          const level = school ? school.level : null;
+          const levels = level ? [level] : ['elementary', 'middle', 'high'];
+          for (const lvl of levels) {
+            const bell = (PACK.bells || []).find((b) => b.level === lvl);
+            if (!bell) continue;
+            const span = info.kind === 'delayed_opening' ? bell.delayed
+                       : info.kind === 'early_dismissal' ? bell.early
+                       : bell.regular;
+            if (!span || !span.start) continue;
+            const label = school ? school.shortName : E.levelLabel(lvl);
+            const text = E.time12(span.start) + ' – ' + E.time12(span.end);
+            const key = label + text;
+            if (seen.indexOf(key) >= 0) continue;
+            seen.push(key);
+            const r = document.createElement('div');
+            r.className = 'glance-row';
+            r.innerHTML = '<b>' + esc(label) + '</b><span>' + esc(text) + '</span>';
+            rows.appendChild(r);
+          }
+        }
+        if (rows.childNodes.length) day.appendChild(rows);
+      }
+
+      if (worst.reason) {
+        const why = document.createElement('div');
+        why.className = 'glance-why';
+        why.textContent = worst.reason;
+        day.appendChild(why);
+      }
+
+      card.appendChild(day);
+    });
+
+    box.appendChild(card);
   }
 
   // ---------------------------------------------------------------- alerts
@@ -179,15 +351,18 @@
     const merged = E.AlertParser.merge((PACK.alerts || []).concat(liveAlerts));
     const active = merged
       .filter((a) => a.date >= today)
-      .filter((a) => !a.schoolId || a.schoolId === schoolId)
+      .filter((a) => !a.schoolId || schoolIds.indexOf(a.schoolId) >= 0)
       .sort((a, b) => a.date.localeCompare(b.date));
 
     for (const a of active) {
       const d = document.createElement('div');
       d.className = 'alert ' + (a.kind === 'closed' ? 'closed' : a.kind === 'delayed_opening' ? 'delay' : 'early');
-      const head = a.kind === 'closed' ? 'Schools closed'
-                 : a.kind === 'delayed_opening' ? 'Delayed opening'
-                 : 'Early dismissal';
+      // Name the school when the closure is only that school's, so nobody
+      // reads a one-building closure as a district snow day.
+      const who = a.schoolId ? (schoolById(a.schoolId) || {}).shortName : null;
+      const head = (a.kind === 'closed' ? (who ? who + ' closed' : 'Schools closed')
+                 : a.kind === 'delayed_opening' ? (who ? who + ' opening late' : 'Delayed opening')
+                 : (who ? who + ' early dismissal' : 'Early dismissal'));
       const when = E.friendlyDay(a.date, PACK.district.timeZone);
       d.innerHTML =
         '<h2>' + esc(head + ' ' + when) + '</h2>' +
@@ -207,8 +382,11 @@
   async function checkAlerts() {
     const urls = [];
     if (PACK.alertFeedUrl) urls.push([PACK.alertFeedUrl, '']);
-    if (schoolId && PACK.schoolFeedUrls && PACK.schoolFeedUrls[schoolId]) {
-      urls.push([PACK.schoolFeedUrls[schoolId], schoolId]);
+    // One feed per child's school, so a closure at either one is seen.
+    for (const id of schoolIds) {
+      if (PACK.schoolFeedUrls && PACK.schoolFeedUrls[id]) {
+        urls.push([PACK.schoolFeedUrls[id], id]);
+      }
     }
     if (!urls.length) return;
 
@@ -233,36 +411,52 @@
       alertStatus = {
         state: 'blocked', at: new Date(),
         note: location.protocol === 'file:'
-          ? 'This page was opened straight from a file, which browsers block from making requests. Run Run-WebApp.bat instead and live checks work.'
-          : 'This copy cannot reach the district feed. Everything else still works from the information built into the app; run it from Run-WebApp.bat, or host it yourself, for live closing checks.'
+          ? 'Opened straight from a file, which browsers stop from going online. Everything already in the app still works.'
+          : 'This copy cannot reach the district for live updates, so closings announced from now on will not appear here. Everything else works, including the calendar and hours. Always check ParentSquare on a bad-weather morning.'
       };
     }
     renderAlerts();
+    // A newly found closing changes today's headline, not just the banner.
+    renderGlance();
     renderSettings();
   }
 
   // ---------------------------------------------------------------- settings
 
   function renderSettings() {
-    const sel = el('school');
-    if (!sel.options.length) {
+    const picker = el('schoolpicker');
+    if (!picker.childNodes.length) {
       const order = ['elementary', 'middle', 'high', 'academy', 'eelc', 'fdr'];
-      sel.innerHTML = '<option value="">Not set</option>';
       for (const lvl of order) {
         const group = (PACK.schools || []).filter((s) => s.level === lvl)
           .sort((a, b) => a.name.localeCompare(b.name));
         if (!group.length) continue;
-        const og = document.createElement('optgroup');
-        og.label = E.levelLabel(lvl);
+        const g = document.createElement('div');
+        g.className = 'grp';
+        g.textContent = E.levelLabel(lvl);
+        picker.appendChild(g);
         for (const s of group) {
-          const o = document.createElement('option');
-          o.value = s.id; o.textContent = s.name;
-          og.appendChild(o);
+          const lab = document.createElement('label');
+          const cb = document.createElement('input');
+          cb.type = 'checkbox';
+          cb.value = s.id;
+          cb.id = 'sch-' + s.id;
+          cb.addEventListener('change', () => {
+            if (cb.checked) { if (schoolIds.indexOf(s.id) < 0) schoolIds.push(s.id); }
+            else { schoolIds = schoolIds.filter((x) => x !== s.id); }
+            saveSchools();
+            applySchool();
+            checkAlerts();
+          });
+          lab.appendChild(cb);
+          lab.appendChild(document.createTextNode(s.name));
+          picker.appendChild(lab);
         }
-        sel.appendChild(og);
       }
     }
-    sel.value = schoolId;
+    for (const cb of picker.querySelectorAll('input[type=checkbox]')) {
+      cb.checked = schoolIds.indexOf(cb.value) >= 0;
+    }
 
     const stat = el('alertstat');
     const help = el('alerthelp');
@@ -291,9 +485,16 @@
   }
 
   function applySchool() {
-    const s = schoolById(schoolId);
-    el('scopeline').textContent = s ? s.name : 'Edison Township Public Schools';
+    const names = schoolIds.map(schoolById).filter(Boolean).map((s) => s.shortName);
+    el('scopeline').textContent = names.length ? names.join(' · ') : 'Edison Township Public Schools';
+
+    // Once the glance card is answering today's question, the "here is what
+    // this app does" paragraph is just pushing the suggestions off screen.
+    const intro = el('intro');
+    if (intro) intro.hidden = names.length > 0;
+
     renderAlerts();
+    renderGlance();
   }
 
   // ---------------------------------------------------------------- chips
@@ -350,12 +551,21 @@
     el('sheet').showModal();
   });
 
-  el('school').addEventListener('change', (e) => {
-    schoolId = e.target.value;
-    store.set('schoolId', schoolId);
-    applySchool();
-    checkAlerts();
-  });
+  /** Clears the questions and brings today's summary back. */
+  function goHome() {
+    lastContext = {};   // a cleared thread starts a fresh conversation
+    for (const n of wrap.querySelectorAll('.q, .a, .ans-school')) n.remove();
+    for (const id of ['glance', 'intro', 'chips', 'try-label', 'disclaimer']) {
+      const n = el(id);
+      if (n) n.hidden = (id === 'intro') ? schoolIds.length > 0 : false;
+    }
+    renderGlance();
+    thread.scrollTop = 0;
+  }
+
+  el('home-btn').addEventListener('click', goHome);
+
+  // Each school's checkbox wires itself up in renderSettings.
 
   // Re-check whenever the app comes back to the foreground — on a phone that
   // is the cheapest moment, and the afternoon-before posting pattern means it
