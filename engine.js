@@ -826,6 +826,70 @@
     return mk(t, 'break_dates', 'break', [pick.url, CAL_URL], 0.92);
   };
 
+  /**
+   * "List every early dismissal", "what are all the days off this year".
+   *
+   * Shows the whole school year rather than the next fortnight: someone
+   * asking for the list is planning, not checking today. Without this,
+   * "list early dismissal days" matched on the words "early dismissal" and
+   * was answered as "is TODAY an early dismissal" — a flat, useless no.
+   */
+  AnswerEngine.prototype.rListOccurrences = function (ctx) {
+    const k = ctx.scheduleKind;
+    const wanted = k === 'early_dismissal' ? ['early_dismissal', 'single_session']
+      : k === 'single_session' ? ['single_session']
+      : k === 'delayed_opening' ? ['delayed_opening']
+      : k === 'closed' ? ['closed', 'break']
+      : ['closed', 'break', 'early_dismissal', 'single_session', 'delayed_opening'];
+    const label = k === 'early_dismissal' ? 'Early dismissal and single session days'
+      : k === 'single_session' ? 'Single session days'
+      : k === 'delayed_opening' ? 'Delayed openings'
+      : k === 'closed' ? 'Days schools are closed'
+      : 'Days that are not a normal full day';
+
+    const sid = ctx.school ? ctx.school.id : null;
+    const todayKey = isoOf(ctx.today);
+
+    // Schools republish the district's own dates on their calendars, so a
+    // districtwide early dismissal appears once for the district and again
+    // for each of your children's schools. Collapse by date and title, and
+    // let the district's copy win.
+    const byKey = new Map();
+    for (const e of (this.pack.calendar || [])) {
+      if (wanted.indexOf(e.kind) < 0) continue;
+      if (e.scope !== 'district') {
+        if (!sid || (e.schoolIds || []).indexOf(sid) < 0) continue;
+      }
+      const key = e.date + '|' + (e.title || '').toLowerCase();
+      const prev = byKey.get(key);
+      if (!prev || (prev.scope !== 'district' && e.scope === 'district')) byKey.set(key, e);
+    }
+    const rows = [...byKey.values()].sort((a, b) => a.date.localeCompare(b.date));
+
+    if (!rows.length) {
+      return mk('Nothing like that is on the published calendar.',
+                'list_occurrences', 'none', [CAL_URL], 0.5);
+    }
+
+    const upcoming = rows.filter((r) => (r.endDate || r.date) >= todayKey);
+    const past = rows.length - upcoming.length;
+
+    let t;
+    if (!upcoming.length) {
+      t = `${label}: none left this school year.`;
+    } else {
+      const lines = upcoming.map((r) => {
+        const s = fromISO(r.date), e = fromISO(r.endDate) || s;
+        const d = isoOf(s) === isoOf(e) ? dateShort(s) : `${dateShort(s)}-${dateShort(e)}`;
+        return `${d} - ${r.title}`;
+      });
+      t = `${label} still to come (${upcoming.length}):\n` + lines.join('\n');
+    }
+    if (past) t += `\n\n(${past} already passed this school year.)`;
+
+    return mk(t, 'list_occurrences', 'list', [CAL_URL], 0.92, sid || '');
+  };
+
   AnswerEngine.prototype.rCalendarList = function (ctx) {
     const slot = ctx.date || { start: ctx.today, end: addDays(ctx.today, 13), isRange: true, phrase: 'the next two weeks' };
     const sid = ctx.school ? ctx.school.id : null;
@@ -1075,6 +1139,7 @@
       school_status: this.rSchoolStatus, day_schedule: this.rDaySchedule,
       bell_times: this.rBellTimes, next_occurrence: this.rNextOccurrence,
       break_dates: this.rBreakDates, calendar_list: this.rCalendarList,
+      list_occurrences: this.rListOccurrences,
       absence_report: this.rAbsence, contact_info: this.rContact
     }[resolver] || this.rFactSearch;
 

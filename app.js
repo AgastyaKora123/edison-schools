@@ -140,20 +140,6 @@
     const meta = document.createElement('div');
     meta.className = 'meta';
 
-    // Offer Claude where the built-in answer is thin. Shown only once the
-    // capability has actually resolved, so it never appears and then fails.
-    if (a.confidence < 0.6 && question) {
-      getSampler().then((s) => {
-        if (!s) return;
-        const ask = document.createElement('button');
-        ask.type = 'button';
-        ask.className = 'askclaude';
-        ask.textContent = a.confidence < 0.3 ? 'Ask School' : 'Ask School for more';
-        ask.addEventListener('click', () => askClaude(question, ask));
-        meta.insertBefore(ask, meta.firstChild);
-      });
-    }
-
     if (a.confidence < 0.5) {
       const w = document.createElement('span');
       w.className = 'lowconf';
@@ -200,21 +186,104 @@
     }
   }
 
-  function ask(text) {
+  /**
+   * Every typed question goes to Schoolo when Schoolo is available.
+   *
+   * It used to be the other way round: rules first, Schoolo behind a button.
+   * That meant each new way of phrasing something needed a new rule, and the
+   * rules could not spell-check, could not tell "is today an early dismissal"
+   * from "list the early dismissals", and never would. The model handles the
+   * wording; the tools give it the exact dates, times and numbers. The rules
+   * engine still runs the summary at the top of the screen — instant, free
+   * and working with no signal — and still answers everything if Schoolo
+   * cannot be reached.
+   */
+  async function ask(text) {
     const q = String(text || '').trim();
     if (!q) return;
 
-    // Hidden, not removed, so tapping the title brings the glance back.
+    showQuestion(q);
+
+    const s = await getSampler();
+    if (s) {
+      const ok = await schooloAnswer(q, s);
+      if (ok) return;
+    }
+    answerFromRules(q);
+  }
+
+  function showQuestion(q) {
     for (const id of ['glance', 'intro', 'try-label', 'chips', 'disclaimer']) {
       const n = el(id);
       if (n) n.hidden = true;
     }
-
     const qn = document.createElement('div');
     qn.className = 'q';
     qn.textContent = q;
     wrap.appendChild(qn);
+    el('ask').value = '';
+    autosize();
+    requestAnimationFrame(() => { thread.scrollTop = thread.scrollHeight; });
+  }
 
+  /** Returns true if Schoolo answered; false to fall back to the rules. */
+  async function schooloAnswer(question, s) {
+    const node = document.createElement('div');
+    node.className = 'a claude';
+    const badge = document.createElement('span');
+    badge.className = 'claude-badge';
+    badge.textContent = 'Schoolo';
+    const body = document.createElement('div');
+    body.className = 'body thinking';
+    body.textContent = 'Thinking…';
+    node.appendChild(badge);
+    node.appendChild(body);
+    wrap.appendChild(node);
+    thread.scrollTop = thread.scrollHeight;
+
+    let started = false;
+    try {
+      const limits = await s.limits().catch(() => null);
+      const opts = {
+        modelTier: 'quick',
+        onText: ({ text }) => {
+          started = true;
+          body.classList.remove('thinking');
+          body.textContent = text;
+          thread.scrollTop = thread.scrollHeight;
+        }
+      };
+      let prompt = buildPrompt(question);
+      if (limits && limits.tools) {
+        opts.tools = schooloTools();
+      } else {
+        // No tools here: hand over the closest pages instead.
+        prompt += '\n\n--- DISTRICT INFORMATION ---\n' +
+                  contextFor(question, 14000) + '\n--- END ---\n';
+        opts.cache = { gcTime: 300000 };
+      }
+      await s(prompt, opts);
+      badge.textContent = 'Schoolo · from the district\'s own pages';
+      return true;
+    } catch (err) {
+      const code = (err && err.code) || 'upstream_error';
+      if (code === 'rate_limited') {
+        body.classList.remove('thinking');
+        body.textContent = 'Schoolo is busy. Here is what the app knows:';
+        return false;                 // rules answer underneath
+      }
+      if (started && err && err.text) {
+        body.textContent = err.text;
+        badge.textContent = 'Schoolo · cut off';
+        return true;
+      }
+      node.remove();                  // say nothing about it; just answer
+      return false;
+    }
+  }
+
+  /** The offline answer: instant, exact, and limited to what it has rules for. */
+  function answerFromRules(q) {
     try {
       const eng = engine();
       // With children at several schools, answer for each and show the
@@ -255,9 +324,6 @@
       }));
       if (window.console) console.error(err);
     }
-
-    el('ask').value = '';
-    autosize();
     requestAnimationFrame(() => { thread.scrollTop = thread.scrollHeight; });
   }
 
@@ -304,77 +370,170 @@
     return out;
   }
 
+  /**
+   * The app's own lookups, handed to Schoolo as things it can call.
+   *
+   * This is the part that matters. A rule per phrasing never finishes —
+   * "list early dismissal days" needed its own rule, and the next way someone
+   * phrases it will need another. Giving the model the lookups instead means
+   * it handles the wording and the data handles the facts, which is the only
+   * split that holds up. Dates, times and phone numbers always come from
+   * here, never from the model's own recollection.
+   */
+  function schooloTools() {
+    const eng = engine();
+
+    const describeDay = (iso, school) => {
+      const d = E.fromISO(iso);
+      if (!d) return { error: 'Date must look like 2026-11-25.' };
+      const info = eng.dayInfo(d, school || null);
+      const out = {
+        date: iso,
+        weekday: E.dateLong(d).split(',')[0],
+        status: info.kind,
+        reason: info.reason || null
+      };
+      const field = info.kind === 'delayed_opening' ? 'delayed'
+                  : info.kind === 'early_dismissal' ? 'early' : 'regular';
+      if (info.kind !== 'closed' && info.kind !== 'weekend') {
+        out.hours = {};
+        for (const b of (PACK.bells || [])) {
+          const span = b[field];
+          if (span && span.start) {
+            out.hours[E.levelLabel(b.level)] = E.time12(span.start) + ' to ' + E.time12(span.end);
+          }
+        }
+      }
+      return out;
+    };
+
+    const findSchool = (name) => {
+      if (!name) return null;
+      return eng.resolveSchool(E.normalize(String(name)));
+    };
+
+    return [
+      {
+        name: 'school_day',
+        description: 'What kind of school day a given date is: open, closed, early dismissal, ' +
+          'delayed opening or weekend, with the reason and the bell times that apply. ' +
+          'Use this for any question about a specific day.',
+        inputSchema: {
+          type: 'object',
+          properties: {
+            date: { type: 'string', description: 'The date, as 2026-11-25.' },
+            school: { type: 'string', description: 'Optional school name.' }
+          },
+          required: ['date']
+        },
+        execute: (input) => describeDay(String(input.date || ''), findSchool(input.school))
+      },
+      {
+        name: 'special_days',
+        description: 'Every day in the school year that is not a normal full day. ' +
+          'Returns a list with dates, what each is, and whether it has passed. ' +
+          'Use this for "list all", "how many are left", or planning questions.',
+        inputSchema: {
+          type: 'object',
+          properties: {
+            kind: {
+              type: 'string',
+              description: 'One of: closed, early_dismissal, delayed_opening, break, all.'
+            }
+          }
+        },
+        execute: (input) => {
+          const k = String(input.kind || 'all').toLowerCase();
+          const want = k === 'closed' ? ['closed']
+            : k === 'break' ? ['break']
+            : k === 'early_dismissal' ? ['early_dismissal', 'single_session']
+            : k === 'delayed_opening' ? ['delayed_opening']
+            : ['closed', 'break', 'early_dismissal', 'single_session', 'delayed_opening'];
+          const today = E.isoOf(eng.today());
+          return (PACK.calendar || [])
+            .filter((e) => e.scope === 'district' && want.indexOf(e.kind) >= 0)
+            .sort((a, b) => a.date.localeCompare(b.date))
+            .map((e) => ({
+              date: e.date,
+              through: e.endDate !== e.date ? e.endDate : undefined,
+              what: e.title,
+              kind: e.kind,
+              passed: (e.endDate || e.date) < today
+            }));
+        }
+      },
+      {
+        name: 'school_contact',
+        description: "A school's address, phone, fax and website. Use this for any " +
+          'question about reaching a school, including reporting an absence.',
+        inputSchema: {
+          type: 'object',
+          properties: { school: { type: 'string', description: 'The school name.' } },
+          required: ['school']
+        },
+        execute: (input) => {
+          const s = findSchool(input.school);
+          if (!s) return { error: 'No school by that name. Ask search_pages instead.' };
+          const c = (PACK.contacts || []).find((x) => x.schoolId === s.id) || {};
+          return {
+            school: s.name, level: E.levelLabel(s.level),
+            address: c.address || null, phone: c.phone || null,
+            fax: c.fax || null, website: s.url,
+            otherNumbers: (c.phones || []).filter((p) => p !== c.phone),
+            emails: c.emails || []
+          };
+        }
+      },
+      {
+        name: 'search_pages',
+        description: "Search the district's and schools' published pages. Returns the " +
+          'closest few with their text and web address. Use this for policies, ' +
+          'programmes, services and anything not about dates or contacts.',
+        inputSchema: {
+          type: 'object',
+          properties: { query: { type: 'string', description: 'What to look for.' } },
+          required: ['query']
+        },
+        execute: (input) => {
+          const terms = E.normalize(String(input.query || '')).split(' ').filter((w) => w.length > 2);
+          const school = schoolIds.length ? schoolById(schoolIds[0]) : null;
+          return eng.factMatches(terms, school, [], 4).map((h) => ({
+            title: h.fact.title,
+            url: h.fact.url,
+            text: String(h.fact.text || '').slice(0, 1800)
+          }));
+        }
+      }
+    ];
+  }
+
   function buildPrompt(question) {
     const eng = engine();
     const today = eng.today();
     const mine = schoolIds.map(schoolById).filter(Boolean).map((s) => s.name);
 
-    let p = 'You are helping a parent in the Edison Township Public Schools district in New Jersey.\n';
+    let p = 'You are Schoolo, answering questions for a parent in the Edison Township Public ';
+    p += 'Schools district in New Jersey.\n';
     p += 'Today is ' + E.dateLong(today) + '.\n';
-    if (mine.length) p += "Their children attend: " + mine.join(', ') + '.\n';
-    p += '\nAnswer using ONLY the district information below. If it does not contain the answer, ';
-    p += 'say plainly that you could not find it and point them to the district website or their ';
-    p += "school's office. Never guess at dates, times or phone numbers.\n";
-    p += 'Reply in two to four short sentences, in plain language, for a parent in a hurry. ';
-    p += 'No headings, no bullet points.\n';
-    p += '\n--- DISTRICT INFORMATION ---\n';
-    p += contextFor(question, 14000);
-    p += '\n--- END OF DISTRICT INFORMATION ---\n';
+    if (mine.length) p += 'Their children attend: ' + mine.join(', ') + '.\n';
+
+    p += '\nYou have tools that read the district\'s own information. Use them rather than ';
+    p += 'answering from memory:\n';
+    p += '- school_day for anything about a particular date\n';
+    p += '- special_days to list closings, early dismissals or breaks\n';
+    p += '- school_contact for a school\'s phone, address or absence line\n';
+    p += '- search_pages for policies, programmes and everything else\n';
+    p += '\nCall as many as you need. Work out dates yourself before calling: if they say ';
+    p += '"next Tuesday", convert it using today\'s date above.\n';
+    p += '\nNever invent a date, a time or a phone number — if a tool did not give it to you, ';
+    p += 'say you could not find it and point them to edison.k12.nj.us or their school office.\n';
+    p += 'Answer in two to four short sentences, plainly, for a parent in a hurry. ';
+    p += 'No headings and no bullet points unless you are listing dates, which you may list ';
+    p += 'one per line.\n';
     p += '\nThe parent asks: ' + question;
     return p;
   }
 
-  /** Adds a card that fills in as Claude writes. */
-  async function askClaude(question, button) {
-    const s = await getSampler();
-    if (!s) { button.remove(); return; }
-
-    button.disabled = true;
-    button.textContent = 'Asking…';
-
-    const node = document.createElement('div');
-    node.className = 'a claude';
-    // The button says "Ask School" because that is what a parent is asking
-    // about. The answer says who actually wrote it: it is Claude reading the
-    // district's pages, not a reply from the district, and a parent deciding
-    // whether to keep their child home should be able to tell the difference.
-    const badge = document.createElement('span');
-    badge.className = 'claude-badge';
-    badge.textContent = 'Written by Claude from district pages';
-    const body = document.createElement('div');
-    body.className = 'body';
-    body.textContent = 'Thinking…';
-    node.appendChild(badge);
-    node.appendChild(body);
-    wrap.appendChild(node);
-    thread.scrollTop = thread.scrollHeight;
-
-    try {
-      await s(buildPrompt(question), {
-        modelTier: 'quick',
-        onText: ({ text }) => {
-          body.textContent = text;
-          thread.scrollTop = thread.scrollHeight;
-        }
-      });
-      button.remove();
-    } catch (err) {
-      const code = (err && err.code) || 'upstream_error';
-      if (code === 'not_granted' || code === 'sampling_disabled') {
-        node.remove();
-        button.remove();
-      } else if (code === 'rate_limited') {
-        body.textContent = 'Too busy right now. Try again in a minute.';
-        button.disabled = false;
-        button.textContent = 'Ask School';
-      } else {
-        body.textContent = (err && err.text) ||
-          'That did not work. The answer above is still from the district\'s own pages.';
-        button.disabled = false;
-        button.textContent = 'Try again';
-      }
-    }
-  }
 
   // ---------------------------------------------------------------- glance
 

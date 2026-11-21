@@ -166,6 +166,24 @@ window.RULES = {
       }
     },
     {
+      "id": "list_occurrences",
+      "resolver": "list_occurrences",
+      "priority": 95,
+      "_note": "'List early dismissal days' used to match day_schedule on the words 'early dismissal' and get answered as 'is TODAY an early dismissal' - a flat no. Asking for every one of something is its own question.",
+      "_treadmill": "Each entry here covers one way of asking and misses five. That is the limit of rules, and the reason Schoolo (the sample capability, with the app's lookups as tools) handles anything this misses rather than this list growing forever.",
+      "requireAny": ["list", "all", "every", "show me", "what are", "when are", "give me", "how many", "left", "remaining", "rest of"],
+      "patterns": [
+        "^(list|show|give)\\b",
+        "^(what|when) (are|is)\\b.{0,20}(all|the)\\b",
+        "\\b(all|every)\\b.{0,25}(early dismissal|half day|single session|day off|days off|closing|closure|holiday|break|recess|delayed opening)",
+        "(early dismissal|half day|single session|day off|days off|closing|holiday|break|recess|delayed opening)s?\\b.{0,20}\\b(this year|for the year|left|remaining|coming up)"
+      ],
+      "keywords": {
+        "list": 6, "all": 4, "every": 4, "show": 3, "remaining": 3,
+        "left": 2, "upcoming": 3, "year": 2, "dates": 3
+      }
+    },
+    {
       "id": "calendar_list",
       "resolver": "calendar_list",
       "priority": 60,
