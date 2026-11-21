@@ -25,7 +25,10 @@ on:
       - ".build-ios-now"
 
 permissions:
-  contents: read
+  # Only so it can write down what failed. GitHub keeps the full log behind
+  # a sign-in, and the person maintaining this has none, so a build that
+  # fails silently is a build nobody can fix. One file, committed back.
+  contents: write
 
 concurrency:
   group: ios-build
@@ -80,7 +83,54 @@ jobs:
             CODE_SIGNING_ALLOWED=NO \
             test 2>&1 | tee test.log
 
-      - name: Keep the logs either way
+      - name: Write down what happened
+        if: always()
+        working-directory: tools/ios
+        run: |
+          OUT=ios-build-result.txt
+          {
+            echo "iPhone app build - $(date -u '+%Y-%m-%d %H:%M UTC')"
+            echo "Xcode: $(xcodebuild -version | head -1)"
+            echo ""
+            if grep -q "BUILD SUCCEEDED" build.log 2>/dev/null; then
+              echo "COMPILED: yes"
+            else
+              echo "COMPILED: no"
+            fi
+            echo ""
+            echo "--- anything the compiler objected to ---"
+            grep -E "(error|warning): " build.log 2>/dev/null | sed 's|.*/tools/ios/||' | sort -u | head -40 || echo "(none)"
+            echo ""
+            echo "--- checks that failed ---"
+            # Xcode writes one line per failing check; the file and line are
+            # in it, which is all that is needed to go and fix the thing.
+            grep -E "error: -\[|XCTAssert|failed \(" test.log 2>/dev/null | sed 's|.*/tools/ios/||' | sort -u | head -60 || echo "(none)"
+            echo ""
+            echo "--- totals ---"
+            grep -E "Executed [0-9]+ test" test.log 2>/dev/null | tail -3 || echo "(tests did not run)"
+          } > "$OUT"
+          echo "::group::result"
+          cat "$OUT"
+          echo "::endgroup::"
+
+      - name: Leave it where it can be read without signing in
+        if: always()
+        run: |
+          git config user.name  "Edison Parent App"
+          git config user.email "edison-parent@users.noreply.github.com"
+          cp tools/ios/ios-build-result.txt ios-build-result.txt
+          git add ios-build-result.txt
+          if git diff --cached --quiet; then
+            echo "Same result as last time; nothing to record."
+            exit 0
+          fi
+          git commit -m "iPhone app build result"
+          # Someone may have pushed while this ran; take their work and add
+          # this on top rather than refusing or, worse, overwriting it.
+          git pull --rebase --autostash origin main || true
+          git push origin HEAD:main
+
+      - name: Keep the full logs too
         if: always()
         uses: actions/upload-artifact@v4
         with:
