@@ -1,0 +1,36 @@
+iPhone app build - 2026-11-21 22:15 UTC
+Xcode: Xcode 26.6
+
+COMPILED: yes
+
+--- anything the compiler objected to ---
+2026-11-21 22:10:09.330 appintentsmetadataprocessor[18299:49875] warning: Metadata extraction skipped. No AppIntents.framework dependency found.
+
+--- checks that failed ---
+EdisonParentTests/AlertParserTests.swift:31: error: -[EdisonParentTests.AlertParserTests testAlertOverridesCalendar] : failed: caught error: "DecodingError.valueNotFound: Expected value of type Array<Any> but found null instead. Path: facts[109].tags. Debug description: Cannot get unkeyed decoding container -- found null value instead"
+EdisonParentTests/AlertParserTests.swift:31: error: -[EdisonParentTests.AlertParserTests testClosureOutranksDelay] : failed: caught error: "DecodingError.valueNotFound: Expected value of type Array<Any> but found null instead. Path: facts[109].tags. Debug description: Cannot get unkeyed decoding container -- found null value instead"
+EdisonParentTests/AlertParserTests.swift:31: error: -[EdisonParentTests.AlertParserTests testDelayedOpeningShiftsBellTimes] : failed: caught error: "DecodingError.valueNotFound: Expected value of type Array<Any> but found null instead. Path: facts[109].tags. Debug description: Cannot get unkeyed decoding container -- found null value instead"
+EdisonParentTests/AlertParserTests.swift:31: error: -[EdisonParentTests.AlertParserTests testSchoolAlertDoesNotCloseOtherSchools] : failed: caught error: "DecodingError.valueNotFound: Expected value of type Array<Any> but found null instead. Path: facts[109].tags. Debug description: Cannot get unkeyed decoding container -- found null value instead"
+EdisonParentTests/AnswerEngineTests.swift:41: error: -[EdisonParentTests.AnswerEngineTests testBareMonthDayPrefersTheFuture] : failed: caught error: "DecodingError.valueNotFound: Expected value of type Array<Any> but found null instead. Path: facts[109].tags. Debug description: Cannot get unkeyed decoding container -- found null value instead"
+EdisonParentTests/AnswerEngineTests.swift:41: error: -[EdisonParentTests.AnswerEngineTests testBreakEndDatesAreInclusive] : failed: caught error: "DecodingError.valueNotFound: Expected value of type Array<Any> but found null instead. Path: facts[109].tags. Debug description: Cannot get unkeyed decoding container -- found null value instead"
+EdisonParentTests/AnswerEngineTests.swift:41: error: -[EdisonParentTests.AnswerEngineTests testEveryLevelHasBellTimes] : failed: caught error: "DecodingError.valueNotFound: Expected value of type Array<Any> but found null instead. Path: facts[109].tags. Debug description: Cannot get unkeyed decoding container -- found null value instead"
+EdisonParentTests/AnswerEngineTests.swift:41: error: -[EdisonParentTests.AnswerEngineTests testEverySchoolResolvesFromItsOwnName] : failed: caught error: "DecodingError.valueNotFound: Expected value of type Array<Any> but found null instead. Path: facts[109].tags. Debug description: Cannot get unkeyed decoding container -- found null value instead"
+EdisonParentTests/AnswerEngineTests.swift:41: error: -[EdisonParentTests.AnswerEngineTests testNoQueryCrashesOrReturnsEmpty] : failed: caught error: "DecodingError.valueNotFound: Expected value of type Array<Any> but found null instead. Path: facts[109].tags. Debug description: Cannot get unkeyed decoding container -- found null value instead"
+EdisonParentTests/AnswerEngineTests.swift:41: error: -[EdisonParentTests.AnswerEngineTests testQuestionContract] : failed: caught error: "DecodingError.valueNotFound: Expected value of type Array<Any> but found null instead. Path: facts[109].tags. Debug description: Cannot get unkeyed decoding container -- found null value instead"
+EdisonParentTests/AnswerEngineTests.swift:41: error: -[EdisonParentTests.AnswerEngineTests testWeekStartsOnMonday] : failed: caught error: "DecodingError.valueNotFound: Expected value of type Array<Any> but found null instead. Path: facts[109].tags. Debug description: Cannot get unkeyed decoding container -- found null value instead"
+Test Case '-[EdisonParentTests.AlertParserTests testAlertOverridesCalendar]' failed (0.746 seconds).
+Test Case '-[EdisonParentTests.AlertParserTests testClosureOutranksDelay]' failed (0.033 seconds).
+Test Case '-[EdisonParentTests.AlertParserTests testDelayedOpeningShiftsBellTimes]' failed (0.011 seconds).
+Test Case '-[EdisonParentTests.AlertParserTests testSchoolAlertDoesNotCloseOtherSchools]' failed (0.014 seconds).
+Test Case '-[EdisonParentTests.AnswerEngineTests testBareMonthDayPrefersTheFuture]' failed (0.044 seconds).
+Test Case '-[EdisonParentTests.AnswerEngineTests testBreakEndDatesAreInclusive]' failed (0.008 seconds).
+Test Case '-[EdisonParentTests.AnswerEngineTests testEveryLevelHasBellTimes]' failed (0.011 seconds).
+Test Case '-[EdisonParentTests.AnswerEngineTests testEverySchoolResolvesFromItsOwnName]' failed (0.105 seconds).
+Test Case '-[EdisonParentTests.AnswerEngineTests testNoQueryCrashesOrReturnsEmpty]' failed (0.009 seconds).
+Test Case '-[EdisonParentTests.AnswerEngineTests testQuestionContract]' failed (0.041 seconds).
+Test Case '-[EdisonParentTests.AnswerEngineTests testWeekStartsOnMonday]' failed (0.009 seconds).
+
+--- totals ---
+	 Executed 7 tests, with 7 failures (7 unexpected) in 0.227 (0.245) seconds
+	 Executed 16 tests, with 11 failures (11 unexpected) in 1.092 (10.629) seconds
+	 Executed 16 tests, with 11 failures (11 unexpected) in 1.092 (10.631) seconds
