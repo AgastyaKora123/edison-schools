@@ -42,7 +42,12 @@ jobs:
       - name: Sort them into the app's information
         shell: powershell
         run: |
-          ./tools/ingest/Build-KnowledgePack.ps1 -Offline
+          # Deliberately NOT -Offline. The previous step saves the district's
+          # pages, but the calendar feeds and the district homepage are not
+          # pages and are not saved by it. Offline-only meant this step had
+          # nothing to read and stopped. Left online, it uses the saved pages
+          # and fetches only the two dozen things that are missing.
+          ./tools/ingest/Build-KnowledgePack.ps1
 
       - name: Check the answers are still right
         shell: powershell

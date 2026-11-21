@@ -60,6 +60,11 @@ Write-Host '  --------------------------' -ForegroundColor DarkGray
 
 $urls = New-Object System.Collections.ArrayList
 
+# The district homepage is not a "/page/" address, so the sweep below misses
+# it - but the collection needs it first of all, for the school list. Save it
+# here so a later run has it even with no network.
+if (-not $SchoolsOnly) { [void]$urls.Add("https://$DistrictHost/") }
+
 # --- district pages
 if (-not $SchoolsOnly) {
     $sx = Get-Web -Url "https://$DistrictHost/sitemap.xml"
