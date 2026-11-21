@@ -104,7 +104,7 @@ jobs:
                   $frag.Substring(0, $i) + "`n</head>`n<body>`n" + $frag.Substring($i) + "`n</body>`n</html>`n"
           [IO.File]::WriteAllText("index.html", $html, $utf8)
           Copy-Item "index.html" "404.html" -Force
-          foreach ($f in @("engine.js", "app.js", "manifest.webmanifest", "icon.svg")) {
+          foreach ($f in @("engine.js", "district.js", "app.js", "manifest.webmanifest", "icon.svg")) {
             Copy-Item "tools/web/$f" $f -Force
           }
 
@@ -113,6 +113,16 @@ jobs:
           $stamp = (Get-Date).ToUniversalTime().ToString('yyyyMMddHHmmss')
           $sw = (Read-Utf8 "tools/web/sw.js").Replace('__BUILD__', $stamp)
           [IO.File]::WriteAllText("sw.js", $sw, $utf8)
+
+          # The district list is not rebuilt here. Finding every district on
+          # the platform means walking thirty-five thousand organisation
+          # numbers, which is an hour of someone else's service for a list
+          # that changes a few times a year. It is rebuilt by hand, with
+          # ingest/Discover-Districts.ps1 and ingest/Build-DistrictList.ps1,
+          # and the existing copy is left alone here.
+          if (-not (Test-Path "data/districts.js")) {
+            throw "data/districts.js is missing - the app would offer no districts."
+          }
 
           # Last line of defence. Nobody notices "studentâ€™s" in a 700 KB
           # file until a parent reads it on their phone, so the job itself

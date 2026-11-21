@@ -138,20 +138,54 @@ function Parse-IcsDate {
     last_day / first_day
     event             - everything else (concerts, picture day, ...)
 #>
-$script:EventRules = @(
-    @{ Kind = 'delayed_opening';    Pattern = 'delayed\s+opening|late\s+start|delayed\s+start|2\s*hour\s+delay' }
-    @{ Kind = 'early_dismissal';    Pattern = 'early\s+dismissal|early\s+release|minimum\s+day' }
-    @{ Kind = 'single_session';     Pattern = 'single\s+session' }
-    @{ Kind = 'break';              Pattern = '\b(recess|break)\b' }
-    @{ Kind = 'no_school_students'; Pattern = 'no\s+school\s+for\s+students|students?\s+do\s+not\s+report|staff\s+(only|development|in-?service)|professional\s+development\s+day' }
-    @{ Kind = 'closed';             Pattern = 'schools?\s+closed|school\s+closed|closed\b|no\s+school' }
-    @{ Kind = 'last_day';           Pattern = 'last\s+day\s+of\s+school' }
-    @{ Kind = 'first_day';          Pattern = 'first\s+day\s+of\s+school|schools?\s+open\b' }
-)
+# The rules themselves live in ingest/rules/intents.json, because the app
+# reads calendars too now - for any district it has no stored copy of - and
+# the two have to agree about what "Early Dismissal" means. Loaded once on
+# first use; the fallback below is only for a caller that has no rules file.
+$script:EventRules = $null
+
+function Initialize-EventRules {
+    param($Rules)
+    $loaded = New-Object System.Collections.ArrayList
+    foreach ($r in @($Rules)) {
+        $kind = [string](D $r 'kind'); $pat = [string](D $r 'pattern')
+        if ($kind -and $pat) { [void]$loaded.Add(@{ Kind = $kind; Pattern = $pat }) }
+    }
+    if ($loaded.Count) { $script:EventRules = $loaded.ToArray() }
+}
+
+function Get-DefaultEventRules {
+    return @(
+        @{ Kind = 'delayed_opening';    Pattern = 'delayed\s+opening|late\s+start|delayed\s+start|2\s*hour\s+delay' }
+        @{ Kind = 'early_dismissal';    Pattern = 'early\s+dismissal|early\s+release|minimum\s+day' }
+        @{ Kind = 'single_session';     Pattern = 'single\s+session' }
+        @{ Kind = 'break';              Pattern = '\b(recess|break)\b' }
+        @{ Kind = 'no_school_students'; Pattern = 'no\s+school\s+for\s+students|students?\s+do\s+not\s+report|staff\s+(only|development|in-?service)|professional\s+development\s+day' }
+        @{ Kind = 'closed';             Pattern = 'schools?\s+closed|school\s+closed|closed\b|no\s+school' }
+        @{ Kind = 'last_day';           Pattern = 'last\s+day\s+of\s+school' }
+        @{ Kind = 'first_day';          Pattern = 'first\s+day\s+of\s+school|schools?\s+open\b' }
+    )
+}
 
 function Get-EventKind {
+    <#
+      What a calendar entry means - decided from its title and nothing else.
+
+      The description used to count too, and it cost a real wrong answer.
+      One district's theatre evening came with a description that was a slab
+      of pasted Microsoft Word markup; buried in the stylesheet was
+      "page-break", which matched the rule for a school break. The app would
+      have told a parent their child had the day off to watch a play.
+
+      Descriptions are whatever somebody pasted in. The title is the entry.
+      Missing a closing that was only ever mentioned in a description is a
+      miss; inventing one is a parent keeping a child at home.
+
+      $Description is still accepted so callers need not change, and ignored.
+    #>
     param([string] $Summary, [string] $Description = '')
-    $hay = (($Summary + ' ' + $Description)).ToLowerInvariant()
+    if (-not $script:EventRules) { $script:EventRules = Get-DefaultEventRules }
+    $hay = ([string]$Summary).ToLowerInvariant()
     foreach ($r in $script:EventRules) {
         if ($hay -match $r.Pattern) { return $r.Kind }
     }

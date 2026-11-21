@@ -385,8 +385,8 @@ function Test-NamesOwnTopic {
     $stop = @('what','when','where','who','how','why','is','are','do','does','did','the','a','an',
               'my','our','i','we','you','to','for','of','in','on','at','it','its','be','can','could',
               'should','would','will','there','their','and','or','if','about','from','me','kid','kids',
-              'child','children','son','daughter','school','schools','edison','district','please','tell',
-              'but','ok','okay','so','then','also','what if')
+              'child','children','son','daughter','school','schools','district','please','tell',
+              'but','ok','okay','so','then','also','what if') + (Get-DistrictInfo $Pack).NameWords
 
     $dateish = @{}
     foreach ($k in @((D $Rules 'dateWords').Keys)) { $dateish[$k] = $true }
@@ -673,16 +673,95 @@ function Format-Time12 {
 }
 
 function Get-LevelLabel {
-    param([string] $Level)
+    <#
+      Only the three groupings every district has are named here. Anything
+      else - a preschool, an academy, a career centre - is the district's own
+      word for it and travels in its information file, because no fixed list
+      could hold every district's arrangements.
+    #>
+    param([string] $Level, $Labels)
+    $own = [string](D $Labels $Level)
+    if ($own) { return $own }
     switch ($Level) {
-        'elementary' { 'Elementary schools (K-5)' }
+        'elementary' { 'Elementary schools' }
         'middle'     { 'Middle schools' }
         'high'       { 'High schools' }
-        'academy'    { 'Edison Success Academy' }
-        'eelc'       { 'Edison Early Learning Center' }
-        'fdr'        { 'FDR Preschool' }
-        default      { $Level }
+        default      { (Get-Culture).TextInfo.ToTitleCase(($Level -replace '[_-]+', ' ')) }
     }
+}
+
+# ---------------------------------------------------------------- district
+
+$script:DistrictCache    = $null
+$script:DistrictCacheFor = $null
+
+function Get-ShortDistrictName {
+    <#
+      "Edison Township Public Schools" -> "Edison". "Conroe ISD" -> "Conroe".
+      Districts name themselves in half a dozen house styles; what a parent
+      calls theirs is almost always the first distinctive word or two.
+    #>
+    param([string] $Name)
+    if (-not $Name) { return '' }
+    $s = $Name
+    $s = [regex]::Replace($s, '\b(independent|unified|consolidated|community|county|township|city|area|regional|local|joint|union|central|public|charter)\b', ' ', 'IgnoreCase')
+    $s = [regex]::Replace($s, '\b(school district|schools district|school system|schools|school|district|isd|usd|cusd|cisd|sd|psd|cs|academy|academies|corporation|corp)\b', ' ', 'IgnoreCase')
+    $s = ($s -replace '\s+', ' ').Trim()
+    if (-not $s) { $s = ($Name -replace '\s+', ' ').Trim() }
+    return (@($s -split ' ' | Where-Object { $_ }) | Select-Object -First 2) -join ' '
+}
+
+function Get-DistrictInfo {
+    <#
+      Everything an answer needs to name and link the district it is about.
+
+      These used to be literals pointing at Edison, scattered through every
+      resolver. They come from the information file now, so the same engine
+      answers for any district that runs the same website software.
+
+      Cached against the pack it was built from: resolvers ask for this
+      several times per answer, and rebuilding it each time is wasted work.
+    #>
+    param($Pack)
+    if ($null -ne $script:DistrictCacheFor -and
+        [object]::ReferenceEquals($script:DistrictCacheFor, $Pack)) {
+        return $script:DistrictCache
+    }
+
+    $d    = D $Pack 'district'
+    $site = ([string](D $d 'url')).TrimEnd('/')
+    $pages = D $d 'pages'
+    $page = {
+        param([string] $Key, [string] $Fallback)
+        $v = [string](D $pages $Key)
+        if ($v) { return $v }
+        if ($site) { return ($site + $Fallback) }
+        return ''
+    }
+
+    $name = [string](D $d 'name')
+    if (-not $name) { $name = 'the district' }
+    $short = [string](D $d 'shortName')
+    if (-not $short) { $short = Get-ShortDistrictName $name }
+
+    $info = [pscustomobject]@{
+        Name        = $name
+        Short       = $(if ($short) { $short } else { 'the district' })
+        AllSchools  = $(if ($short) { "$short schools" } else { 'schools in the district' })
+        Site        = $site
+        Calendar    = (& $page 'calendar' '/page/district-yearly-calendar/')
+        Events      = (& $page 'events'   '/events/')
+        Hours       = (& $page 'hours'    '/page/school-hours/')
+        Feed        = (& $page 'feed'     '/live-feed/')
+        LevelLabels = (D $d 'levelLabels')
+        # The district's own name is noise when searching its pages, because
+        # every page says it. Which words those are depends on the district.
+        NameWords   = @(@($name.ToLowerInvariant() -split '[^a-z0-9]+') | Where-Object { $_.Length -gt 2 })
+    }
+
+    $script:DistrictCacheFor = $Pack
+    $script:DistrictCache    = $info
+    return $info
 }
 
 # ================================================================ fact retrieval
@@ -917,13 +996,13 @@ function Invoke-Resolver-SchoolStatus {
             return New-Answer -Text ("I'm not sure which day you mean. Try naming the date - " +
                                      '"is there school on December 24" - or ask about today or tomorrow.') `
                               -Intent 'school_status' -Kind 'unclear_date' -Confidence 0.2 `
-                              -Sources @('https://www.edison.k12.nj.us/page/district-yearly-calendar/')
+                              -Sources @((Get-DistrictInfo $Pack).Calendar)
         }
         $slot = New-DateSlot $Ctx.Today $Ctx.Today 'day' 'today'
     }
 
     $school = $Ctx.School
-    $label  = if ($school) { [string](D $school 'name') } else { 'Edison schools' }
+    $label  = if ($school) { [string](D $school 'name') } else { (Get-DistrictInfo $Pack).AllSchools }
     $isAre  = if ($school) { 'is' } else { 'are' }
 
     if ($slot.Kind -eq 'range') {
@@ -945,15 +1024,15 @@ function Invoke-Resolver-SchoolStatus {
         }
         $txt = ("{0} for {1}:`n{2}" -f $label, $slot.Phrase, ($lines -join "`n"))
         return New-Answer -Text $txt -Intent 'school_status' -Kind 'range' `
-                          -Sources @("https://www.edison.k12.nj.us/events/") -SchoolId $(if($school){[string](D $school 'id')}else{''})
+                          -Sources @((Get-DistrictInfo $Pack).Events) -SchoolId $(if($school){[string](D $school 'id')}else{''})
     }
 
     $date = $slot.Start
     $dk = Get-DayKind -Pack $Pack -Date $date -School $school
     $src = @()
     if ($dk.Entry) { $src += [string](D $dk.Entry 'url') }
-    if ($dk.Alert) { $src += 'https://www.edison.k12.nj.us/live-feed/' }
-    $src += 'https://www.edison.k12.nj.us/page/district-yearly-calendar/'
+    if ($dk.Alert) { $src += (Get-DistrictInfo $Pack).Feed }
+    $src += (Get-DistrictInfo $Pack).Calendar
 
     # An announcement is worth marking as one - a parent should be able to see
     # that this came from the district saying so today, not from the calendar.
@@ -1024,7 +1103,7 @@ function Get-BellLines {
             $s = Format-Time12 ([string](D $sch 'start'))
             $e = Format-Time12 ([string](D $sch 'end'))
             if (-not $s) { continue }
-            $lines += ('{0}: {1} to {2}' -f (Get-LevelLabel $lvl), $s, $e)
+            $lines += ('{0}: {1} to {2}' -f (Get-LevelLabel $lvl (Get-DistrictInfo $Pack).LevelLabels), $s, $e)
         }
     }
     return ($lines | Select-Object -Unique) -join "`n"
@@ -1052,19 +1131,19 @@ function Invoke-Resolver-DaySchedule {
             $what = if ($asked) { ($asked -replace '_', ' ') } else { 'schedule change' }
             return New-Answer -Text ("No {0} is listed for {1}." -f $what, $slot.Phrase) `
                               -Intent 'day_schedule' -Kind 'none' -Confidence 0.85 `
-                              -Sources @('https://www.edison.k12.nj.us/events/')
+                              -Sources @((Get-DistrictInfo $Pack).Events)
         }
         $lines = foreach ($h in $hits) { '{0} - {1}' -f (Format-DateShort $h.D), $h.R }
         return New-Answer -Text (("For {0}:`n" -f $slot.Phrase) + ($lines -join "`n")) `
                           -Intent 'day_schedule' -Kind 'range' -Confidence 0.9 `
-                          -Sources @('https://www.edison.k12.nj.us/events/')
+                          -Sources @((Get-DistrictInfo $Pack).Events)
     }
 
     $date = $slot.Start
     $dk = Get-DayKind -Pack $Pack -Date $date -School $Ctx.School
     $src = @()
     if ($dk.Entry) { $src += [string](D $dk.Entry 'url') }
-    $src += 'https://www.edison.k12.nj.us/page/school-hours/'
+    $src += (Get-DistrictInfo $Pack).Hours
 
     if ($dk.Kind -eq 'weekend') {
         return New-Answer -Text ('{0} is a {1} - no school.' -f (Format-DateLong $date), $date.DayOfWeek) `
@@ -1129,13 +1208,13 @@ function Invoke-Resolver-BellTimes {
         if ($dk.Kind -eq 'weekend') {
             return New-Answer -Text ('{0} is a {1} - no school.' -f (Format-DateLong $date), $date.DayOfWeek) `
                               -Intent 'bell_times' -Kind 'weekend' -Confidence 0.95 `
-                              -Sources @('https://www.edison.k12.nj.us/page/school-hours/')
+                              -Sources @((Get-DistrictInfo $Pack).Hours)
         }
         if ($dk.Kind -eq 'closed') {
             return New-Answer -Text ('Schools are closed on {0}{1}.' -f (Format-DateLong $date), `
                                      $(if ($dk.Reason) { " ($($dk.Reason))" } else { '' })) `
                               -Intent 'bell_times' -Kind 'closed' -Confidence 0.92 `
-                              -Sources @('https://www.edison.k12.nj.us/page/district-yearly-calendar/')
+                              -Sources @((Get-DistrictInfo $Pack).Calendar)
         }
         if ($dk.Kind -in @('early_dismissal','delayed_opening')) { $dayKind = $dk.Kind; $reason = $dk.Reason }
     }
@@ -1160,7 +1239,7 @@ function Invoke-Resolver-BellTimes {
         $t += "`nDelayed opening starts 2 hours later; early dismissal/single session ends early."
     }
     return New-Answer -Text $t -Intent 'bell_times' -Kind $dayKind -Confidence 0.9 `
-                      -Sources @('https://www.edison.k12.nj.us/page/school-hours/') `
+                      -Sources @((Get-DistrictInfo $Pack).Hours) `
                       -SchoolId $(if ($Ctx.School) { [string](D $Ctx.School 'id') } else { '' })
 }
 
@@ -1194,7 +1273,7 @@ function Invoke-Resolver-NextOccurrence {
         $what = if ($kind) { ($kind -replace '_',' ') } else { 'schedule change' }
         return New-Answer -Text ("Nothing further is published for a {0} this school year." -f $what) `
                           -Intent 'next_occurrence' -Kind 'none' -Confidence 0.6 `
-                          -Sources @('https://www.edison.k12.nj.us/events/')
+                          -Sources @((Get-DistrictInfo $Pack).Events)
     }
 
     $s  = Parse-PackDate ([string](D $best 'date'))
@@ -1242,7 +1321,7 @@ function Invoke-Resolver-BreakDates {
     if (-not @($cands).Count) {
         return New-Answer -Text ("I couldn't find {0} on the published calendar." -f $(if ($brk) { $brk } else { 'that break' })) `
                           -Intent 'break_dates' -Kind 'none' -Confidence 0.4 `
-                          -Sources @('https://www.edison.k12.nj.us/page/district-yearly-calendar/')
+                          -Sources @((Get-DistrictInfo $Pack).Calendar)
     }
 
     # A break closes the whole district, so the district's own entry is the
@@ -1275,7 +1354,7 @@ function Invoke-Resolver-BreakDates {
         $t += ' Students return {0}.' -f (Format-DateShort $back)
     }
     return New-Answer -Text $t -Intent 'break_dates' -Kind 'break' -Confidence 0.92 `
-                      -Sources @([string](D $pick 'url'), 'https://www.edison.k12.nj.us/page/district-yearly-calendar/')
+                      -Sources @([string](D $pick 'url'), (Get-DistrictInfo $Pack).Calendar)
 }
 
 function Invoke-Resolver-ListOccurrences {
@@ -1332,7 +1411,7 @@ function Invoke-Resolver-ListOccurrences {
     if (-not $rows.Count) {
         return New-Answer -Text "Nothing like that is on the published calendar." `
                           -Intent 'list_occurrences' -Kind 'none' -Confidence 0.5 `
-                          -Sources @('https://www.edison.k12.nj.us/page/district-yearly-calendar/')
+                          -Sources @((Get-DistrictInfo $Pack).Calendar)
     }
 
     $sorted = @($rows | Sort-Object S)
@@ -1366,7 +1445,7 @@ function Invoke-Resolver-ListOccurrences {
     }
 
     return New-Answer -Text $t -Intent 'list_occurrences' -Kind 'list' -Confidence 0.92 `
-                      -Sources @('https://www.edison.k12.nj.us/page/district-yearly-calendar/') `
+                      -Sources @((Get-DistrictInfo $Pack).Calendar) `
                       -SchoolId $sid
 }
 
@@ -1395,14 +1474,14 @@ function Invoke-Resolver-CalendarList {
 
     if (-not $rows.Count) {
         return New-Answer -Text ("Nothing is listed for {0}." -f $slot.Phrase) -Intent 'calendar_list' `
-                          -Kind 'none' -Confidence 0.7 -Sources @('https://www.edison.k12.nj.us/events/')
+                          -Kind 'none' -Confidence 0.7 -Sources @((Get-DistrictInfo $Pack).Events)
     }
     $lines = foreach ($r in ($rows | Sort-Object S | Select-Object -First 12)) {
         $d = if ($r.S -eq $r.E) { Format-DateShort $r.S } else { '{0}-{1}' -f (Format-DateShort $r.S), (Format-DateShort $r.E) }
         '{0}: {1}' -f $d, $r.T
     }
     return New-Answer -Text (("{0}:`n" -f $slot.Phrase) + ($lines -join "`n")) -Intent 'calendar_list' `
-                      -Kind 'list' -Confidence 0.85 -Sources @('https://www.edison.k12.nj.us/events/')
+                      -Kind 'list' -Confidence 0.85 -Sources @((Get-DistrictInfo $Pack).Events)
 }
 
 function Invoke-Resolver-AbsenceReport {
@@ -1438,11 +1517,19 @@ function Invoke-Resolver-AbsenceReport {
     }
 
     if (-not $hits.Count) {
+        # Never a number from somewhere else. This used to fall back to a
+        # literal - Edison's switchboard - which for a parent in any other
+        # district is not merely useless but wrong, and wrong in a way they
+        # would only discover by ringing a stranger.
         $phone = [string](D (D $Pack 'district') 'phone')
-        if (-not $phone) { $phone = '732-452-4900' }
-        $t = "Report an absence by calling your child's school office. The district's main number is $phone."
+        $t = if ($phone) {
+            "Report an absence by calling your child's school office. {0}'s main number is {1}." -f
+                (Get-DistrictInfo $Pack).Short, $phone
+        } else {
+            "Report an absence by calling your child's school office. I don't have the office numbers for this district yet - they are on the school's own page."
+        }
         return New-Answer -Text $t -Intent 'absence_report' -Kind 'fallback' -Confidence 0.35 `
-                          -Sources @('https://www.edison.k12.nj.us/page/chain-of-communication/')
+                          -Sources @((Get-DistrictInfo $Pack).Site)
     }
 
     $f = $hits[0].Fact
@@ -1487,19 +1574,28 @@ function Invoke-Resolver-ContactInfo {
             $em = @(DA $rec 'emails' | Select-Object -First 2)
             if ($em.Count) { $lines += 'Email: ' + ($em -join ', ') }
         }
-        $lines += 'Website: ' + [string](D $school 'url')
+        # Only lines that say something. For a district read live there is no
+        # address, no phone and no school website, and printing the labels
+        # with nothing after them ("Website:") reads as though the app has
+        # lost the answer rather than never having had it.
+        $surl = [string](D $school 'url')
+        if ($surl) { $lines += "Website: $surl" }
 
-        if ($lines.Count -gt 2) {
+        if ($lines.Count -gt 1) {
             return New-Answer -Text ($lines -join "`n") -Intent 'contact_info' -Kind 'school' `
-                              -Confidence 0.88 -Sources @([string](D $school 'url')) -SchoolId $sid
+                              -Confidence 0.88 -Sources @($surl) -SchoolId $sid
         }
-        # Only a name and a URL: say so against the district rather than
-        # silently answering about a different office.
-        $d0 = D $Pack 'district'
+        # Only a name: say so against the district rather than silently
+        # answering about a different office.
+        $dphone = [string](D (D $Pack 'district') 'phone')
         $t0 = ($lines -join "`n")
-        if ($d0) { $t0 += "`n`nDistrict main line: " + [string](D $d0 'phone') }
+        $t0 += if ($dphone) {
+            "`n`n{0}'s main line: {1}" -f (Get-DistrictInfo $Pack).Short, $dphone
+        } else {
+            "`n`nI don't have the office numbers for this district - they are on the school's own page."
+        }
         return New-Answer -Text $t0 -Intent 'contact_info' -Kind 'school_partial' `
-                          -Confidence 0.6 -Sources @([string](D $school 'url')) -SchoolId $sid
+                          -Confidence 0.6 -Sources @($surl) -SchoolId $sid
     }
 
     $dist = D $Pack 'district'
@@ -1525,7 +1621,8 @@ function Invoke-Resolver-FactSearch {
     $stop = @('what','when','where','who','how','why','is','are','do','does','did','the','a','an',
               'my','our','i','we','you','to','for','of','in','on','at','it','its','be','can','could',
               'should','would','will','there','their','and','or','if','about','from','me','kid','kids',
-              'child','children','son','daughter','school','schools','edison','district','please','tell')
+              'child','children','son','daughter','school','schools','district','please','tell') +
+             (Get-DistrictInfo $Pack).NameWords
     $terms = @(Get-Tokens $Ctx.Norm | Where-Object { $_.Length -gt 2 -and $stop -notcontains $_ })
     if (-not $terms.Count) {
         $terms = @(Get-Tokens $Ctx.Norm | Where-Object { $_.Length -gt 2 })
@@ -1537,10 +1634,21 @@ function Invoke-Resolver-FactSearch {
 
     $hits = @(Get-FactMatches -Pack $Pack -Terms $terms -School $Ctx.School -Top 3)
     if (-not $hits.Count) {
-        return New-Answer -Text ("I couldn't find that in the district's published pages. " +
-                                 'Try rewording, or check https://www.edison.k12.nj.us') `
+        # Two different answers, because they are two different situations.
+        # "I looked and it isn't there" and "nobody has read this district's
+        # pages" both end in no answer, but only one of them is the parent's
+        # fault for asking oddly.
+        $site = (Get-DistrictInfo $Pack).Site
+        $where = if ($site) { $site } else { "the district's website" }
+        $text = if (@(DA $Pack 'facts').Count) {
+            "I couldn't find that in the district's published pages. Try rewording, or check $where"
+        } else {
+            "I don't have {0}'s pages - only its calendar and its closings. For policies, school hours and office numbers, check {1}." -f
+                (Get-DistrictInfo $Pack).Short, $where
+        }
+        return New-Answer -Text $text `
                           -Intent 'fact_search' -Kind 'none' -Confidence 0.15 `
-                          -Sources @('https://www.edison.k12.nj.us')
+                          -Sources @((Get-DistrictInfo $Pack).Site)
     }
 
     $f = $hits[0].Fact
@@ -1584,7 +1692,8 @@ function Invoke-Query {
 
     $norm = Normalize-Query $Query
     if (-not $norm) {
-        return New-Answer -Text 'Ask me anything about Edison schools - hours, closings, the calendar, absences.' `
+        return New-Answer -Text ('Ask me anything about {0} - hours, closings, the calendar, absences.' -f
+                                 (Get-DistrictInfo $Pack).AllSchools) `
                           -Intent 'empty' -Confidence 0.0
     }
 

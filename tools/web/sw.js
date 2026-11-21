@@ -10,9 +10,10 @@
 // this file if the file's own contents changed. With a fixed name, someone who
 // opened the app once would keep the files they saved that day for ever, and
 // every later update - including the monthly refresh - would reach nobody.
-const CACHE = 'edison-__BUILD__';
-const ASSETS = ['./', 'index.html', 'engine.js', 'app.js',
-                'data/pack.js', 'data/rules.js', 'manifest.webmanifest', 'icon.svg'];
+const CACHE = 'schools-__BUILD__';
+const ASSETS = ['./', 'index.html', 'engine.js', 'district.js', 'app.js',
+                'data/pack.js', 'data/rules.js', 'data/districts.js',
+                'manifest.webmanifest', 'icon.svg'];
 
 self.addEventListener('install', (e) => {
   e.waitUntil(caches.open(CACHE).then((c) => c.addAll(ASSETS)).then(() => self.skipWaiting()));

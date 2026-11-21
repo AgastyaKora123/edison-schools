@@ -1,5 +1,5 @@
 /*
- * engine.js — the Edison Parent answer engine, JavaScript port.
+ * engine.js — the school answer engine, JavaScript port.
  *
  * Port of engine/Answer-Query.ps1 and engine/Alerts.ps1. The PowerShell is the
  * oracle; tests/questions.jsonl and tests/alerts.jsonl are the contract, and
@@ -179,7 +179,59 @@
   function AnswerEngine(pack, rules) {
     this.pack = pack || {};
     this.rules = rules || {};
-    this.tz = (pack && pack.district && pack.district.timeZone) || 'America/New_York';
+    const d = this.pack.district || {};
+    this.tz = d.timeZone || 'America/New_York';
+
+    // Where an answer says it came from. These used to be four constants
+    // pointing at Edison. They come from the information file now, so the
+    // same engine answers for any district that runs the same website
+    // software - which is several thousand of them.
+    const site = String(d.url || '').replace(/\/+$/, '');
+    const page = (p, fallback) => (d.pages && d.pages[p]) || (site ? site + fallback : '');
+    this.urls = {
+      site: site,
+      calendar: page('calendar', '/page/district-yearly-calendar/'),
+      events: page('events', '/events/'),
+      hours: page('hours', '/page/school-hours/'),
+      feed: page('feed', '/live-feed/')
+    };
+    // What to call the district when an answer names it.
+    this.districtName = d.name || 'the district';
+    this.districtShort = d.shortName || shortenDistrict(d.name) || 'the district';
+    this.allSchoolsLabel = this.districtShort === 'the district'
+      ? 'schools in the district'
+      : this.districtShort + ' schools';
+
+    // Names for the groupings a district uses beyond elementary/middle/high -
+    // a preschool, an academy, a career centre. Its own, from its own file.
+    this.levelLabels = d.levelLabels || {};
+
+    // The district's own name is noise when searching its pages - every page
+    // says it. Which words those are depends on the district, so the list is
+    // built per district rather than written down.
+    this.stop = new Set(STOP);
+    for (const w of String(d.name || '').toLowerCase().split(/[^a-z0-9]+/)) {
+      if (w.length > 2) this.stop.add(w);
+    }
+  }
+
+  /**
+   * "Edison Township Public Schools" -> "Edison". "Conroe ISD" -> "Conroe".
+   * Districts name themselves in half a dozen house styles; what a parent
+   * calls theirs is almost always the first distinctive word or two.
+   */
+  function shortenDistrict(name) {
+    if (!name) return '';
+    let s = String(name)
+      .replace(/\b(independent|unified|consolidated|community|county|township|city|area|regional|local|joint|union|central|public|charter)\b/gi, ' ')
+      .replace(/\b(school district|schools district|school system|schools|school|district|isd|usd|cusd|cisd|sd|psd|cs|academy|academies|corporation|corp)\b/gi, ' ')
+      .replace(/\s+/g, ' ')
+      .trim();
+    // Everything was a qualifier (e.g. "Central School District"): keep the
+    // original rather than returning nothing.
+    if (!s) s = String(name).replace(/\s+/g, ' ').trim();
+    const words = s.split(' ').filter(Boolean);
+    return words.slice(0, 2).join(' ');
   }
 
   AnswerEngine.prototype.today = function () { return todayIn(this.tz); };
@@ -481,15 +533,17 @@
 
   // ---------------------------------------------------------------- bells
 
+  // Only the three levels every district has. Anything else - a preschool,
+  // an academy, a career centre - is named by the district itself and comes
+  // from its own information file, because no fixed list could hold them.
   const LEVEL_LABELS = {
-    elementary: 'Elementary schools (K-5)',
+    elementary: 'Elementary schools',
     middle: 'Middle schools',
-    high: 'High schools',
-    academy: 'Edison Success Academy',
-    eelc: 'Edison Early Learning Center',
-    fdr: 'FDR Preschool'
+    high: 'High schools'
   };
-  const levelLabel = (l) => LEVEL_LABELS[l] || l;
+  const titleCase = (s) => String(s || '').replace(/[_-]+/g, ' ')
+    .replace(/(^|\s)([a-z])/g, (m, a, b) => a + b.toUpperCase());
+  const levelLabel = (l, labels) => (labels && labels[l]) || LEVEL_LABELS[l] || titleCase(l);
 
   AnswerEngine.prototype.bellLines = function (ctx, dayKind) {
     let levels;
@@ -506,7 +560,7 @@
         if (b.level !== lvl) continue;
         const span = b[field];
         if (!span || !span.start) continue;
-        const line = `${levelLabel(lvl)}: ${time12(span.start)} to ${time12(span.end)}`;
+        const line = `${levelLabel(lvl, this.levelLabels)}: ${time12(span.start)} to ${time12(span.end)}`;
         if (lines.indexOf(line) < 0) lines.push(line);
       }
     }
@@ -517,7 +571,7 @@
 
   const STOP = new Set(('what when where who how why is are do does did the a an my our i we you to for of in on at ' +
     'it its be can could should would will there their and or if about from me kid kids child children son daughter ' +
-    'school schools edison district please tell').split(' '));
+    'school schools district please tell').split(' '));
 
   AnswerEngine.prototype.factMatches = function (terms, school, requireTags, top) {
     const facts = this.pack.facts || [];
@@ -622,10 +676,6 @@
     };
   }
 
-  const CAL_URL = 'https://www.edison.k12.nj.us/page/district-yearly-calendar/';
-  const EVENTS_URL = 'https://www.edison.k12.nj.us/events/';
-  const HOURS_URL = 'https://www.edison.k12.nj.us/page/school-hours/';
-  const FEED_URL = 'https://www.edison.k12.nj.us/live-feed/';
 
   /**
    * Did the question name a particular day we failed to work out?
@@ -671,10 +721,10 @@
     if (!ctx.date && this.asksAboutSomeOtherDay(ctx.norm)) {
       return mk('I\'m not sure which day you mean. Try naming the date — ' +
                 '"is there school on December 24" — or ask about today or tomorrow.',
-                'school_status', 'unclear_date', [CAL_URL], 0.2);
+                'school_status', 'unclear_date', [this.urls.calendar], 0.2);
     }
     const slot = ctx.date || { start: ctx.today, end: ctx.today, isRange: false, phrase: 'today' };
-    const label = ctx.school ? ctx.school.name : 'Edison schools';
+    const label = ctx.school ? ctx.school.name : this.allSchoolsLabel;
     const isAre = ctx.school ? 'is' : 'are';
 
     if (slot.isRange) {
@@ -689,15 +739,15 @@
         lines.push(`${dateShort(d)}: ${desc}`);
       }
       return mk(`${label} for ${slot.phrase}:\n${lines.join('\n')}`, 'school_status', 'range',
-                [EVENTS_URL], 0.85, ctx.school ? ctx.school.id : '');
+                [this.urls.events], 0.85, ctx.school ? ctx.school.id : '');
     }
 
     const date = slot.start;
     const info = this.dayInfo(date, ctx.school);
     const src = [];
     if (info.entry) src.push(info.entry.url);
-    if (info.alert) src.push(FEED_URL);
-    src.push(CAL_URL);
+    if (info.alert) src.push(this.urls.feed);
+    src.push(this.urls.calendar);
 
     let note = '';
     if (info.alert) {
@@ -752,16 +802,16 @@
       }
       if (!hits.length) {
         const what = asked ? asked.replace(/_/g, ' ') : 'schedule change';
-        return mk(`No ${what} is listed for ${slot.phrase}.`, 'day_schedule', 'none', [EVENTS_URL], 0.85);
+        return mk(`No ${what} is listed for ${slot.phrase}.`, 'day_schedule', 'none', [this.urls.events], 0.85);
       }
-      return mk(`For ${slot.phrase}:\n${hits.join('\n')}`, 'day_schedule', 'range', [EVENTS_URL], 0.9);
+      return mk(`For ${slot.phrase}:\n${hits.join('\n')}`, 'day_schedule', 'range', [this.urls.events], 0.9);
     }
 
     const date = slot.start;
     const info = this.dayInfo(date, ctx.school);
     const src = [];
     if (info.entry) src.push(info.entry.url);
-    src.push(HOURS_URL);
+    src.push(this.urls.hours);
 
     if (info.kind === 'weekend') {
       return mk(`${dateLong(date)} is a ${weekdayName(date)} - no school.`, 'day_schedule', 'weekend', src, 0.95);
@@ -809,11 +859,11 @@
     if (date) {
       const info = this.dayInfo(date, ctx.school);
       if (info.kind === 'weekend') {
-        return mk(`${dateLong(date)} is a ${weekdayName(date)} - no school.`, 'bell_times', 'weekend', [HOURS_URL], 0.95);
+        return mk(`${dateLong(date)} is a ${weekdayName(date)} - no school.`, 'bell_times', 'weekend', [this.urls.hours], 0.95);
       }
       if (info.kind === 'closed') {
         const why = info.reason ? ` (${info.reason})` : '';
-        return mk(`Schools are closed on ${dateLong(date)}${why}.`, 'bell_times', 'closed', [CAL_URL], 0.92);
+        return mk(`Schools are closed on ${dateLong(date)}${why}.`, 'bell_times', 'closed', [this.urls.calendar], 0.92);
       }
       if (info.kind === 'early_dismissal' || info.kind === 'delayed_opening') {
         dayKind = info.kind; reason = info.reason;
@@ -835,7 +885,7 @@
     if (dayKind === 'regular' && !date) {
       t += '\nDelayed opening starts 2 hours later; early dismissal/single session ends early.';
     }
-    return mk(t, 'bell_times', dayKind, [HOURS_URL], 0.9, ctx.school ? ctx.school.id : '');
+    return mk(t, 'bell_times', dayKind, [this.urls.hours], 0.9, ctx.school ? ctx.school.id : '');
   };
 
   AnswerEngine.prototype.rNextOccurrence = function (ctx) {
@@ -861,7 +911,7 @@
     if (!best) {
       const what = k ? k.replace(/_/g, ' ') : 'schedule change';
       return mk(`Nothing further is published for a ${what} this school year.`,
-                'next_occurrence', 'none', [EVENTS_URL], 0.6);
+                'next_occurrence', 'none', [this.urls.events], 0.6);
     }
 
     const s = fromISO(best.date), e2 = fromISO(best.endDate) || s;
@@ -895,7 +945,7 @@
 
     if (!cands.length) {
       return mk(`I couldn't find ${brk || 'that break'} on the published calendar.`,
-                'break_dates', 'none', [CAL_URL], 0.4);
+                'break_dates', 'none', [this.urls.calendar], 0.4);
     }
 
     // A break closes the whole district, so the district's own entry is the
@@ -925,7 +975,7 @@
       while (weekday(back) === 0 || weekday(back) === 6) back = addDays(back, 1);
       t += ` Students return ${dateShort(back)}.`;
     }
-    return mk(t, 'break_dates', 'break', [pick.url, CAL_URL], 0.92);
+    return mk(t, 'break_dates', 'break', [pick.url, this.urls.calendar], 0.92);
   };
 
   /**
@@ -970,7 +1020,7 @@
 
     if (!rows.length) {
       return mk('Nothing like that is on the published calendar.',
-                'list_occurrences', 'none', [CAL_URL], 0.5);
+                'list_occurrences', 'none', [this.urls.calendar], 0.5);
     }
 
     const upcoming = rows.filter((r) => (r.endDate || r.date) >= todayKey);
@@ -1000,7 +1050,7 @@
       if (past) t += `\n\n(${past} already passed this school year.)`;
     }
 
-    return mk(t, 'list_occurrences', 'list', [CAL_URL], 0.92, sid || '');
+    return mk(t, 'list_occurrences', 'list', [this.urls.calendar], 0.92, sid || '');
   };
 
   AnswerEngine.prototype.rCalendarList = function (ctx) {
@@ -1018,14 +1068,14 @@
     }).sort((x, y) => x.date.localeCompare(y.date)).slice(0, 12);
 
     if (!rows.length) {
-      return mk(`Nothing is listed for ${slot.phrase}.`, 'calendar_list', 'none', [EVENTS_URL], 0.7);
+      return mk(`Nothing is listed for ${slot.phrase}.`, 'calendar_list', 'none', [this.urls.events], 0.7);
     }
     const lines = rows.map((r) => {
       const s = fromISO(r.date), e = fromISO(r.endDate) || s;
       const d = isoOf(s) === isoOf(e) ? dateShort(s) : `${dateShort(s)}-${dateShort(e)}`;
       return `${d}: ${r.title}`;
     });
-    return mk(`${slot.phrase}:\n${lines.join('\n')}`, 'calendar_list', 'list', [EVENTS_URL], 0.85);
+    return mk(`${slot.phrase}:\n${lines.join('\n')}`, 'calendar_list', 'list', [this.urls.events], 0.85);
   };
 
   AnswerEngine.prototype.rAbsence = function (ctx) {
@@ -1053,9 +1103,16 @@
     }
 
     if (!hits.length) {
-      const phone = (this.pack.district && this.pack.district.phone) || '732-452-4900';
-      return mk(`Report an absence by calling your child's school office. The district's main number is ${phone}.`,
-                'absence_report', 'fallback', ['https://www.edison.k12.nj.us/page/chain-of-communication/'], 0.35);
+      // Never a number from somewhere else. This used to fall back to a
+      // literal - Edison's switchboard - which for a parent in any other
+      // district is not merely useless but wrong, and wrong in a way they
+      // would only discover by ringing a stranger. If this district's number
+      // is not known, say so.
+      const phone = (this.pack.district && this.pack.district.phone) || '';
+      const t = phone
+        ? `Report an absence by calling your child's school office. ${this.districtShort}'s main number is ${phone}.`
+        : "Report an absence by calling your child's school office. I don't have the office numbers for this district yet - they are on the school's own page.";
+      return mk(t, 'absence_report', 'fallback', [this.urls.site], 0.35);
     }
     const f = hits[0].fact;
     const excerpt = this.factExcerpt(f, terms);
@@ -1082,14 +1139,21 @@
         const em = (rec.emails || []).slice(0, 2);
         if (em.length) lines.push('Email: ' + em.join(', '));
       }
-      lines.push(`Website: ${ctx.school.url}`);
-      if (lines.length > 2) {
+      // Only lines that say something. For a district read live there is no
+      // address, no phone and no school website, and printing the labels
+      // with nothing after them ("Website:") reads as though the app has
+      // lost the answer rather than never having had it.
+      if (ctx.school.url) lines.push(`Website: ${ctx.school.url}`);
+      if (lines.length > 1) {
         return mk(lines.join('\n'), 'contact_info', 'school', [ctx.school.url], 0.88, ctx.school.id);
       }
-      return mk(lines.join('\n') + `\n\nDistrict main line: ${d.phone || ''}`,
+      const tail = d.phone
+        ? `\n\n${this.districtShort}'s main line: ${d.phone}`
+        : "\n\nI don't have the office numbers for this district - they are on the school's own page.";
+      return mk(lines.join('\n') + tail,
                 'contact_info', 'school_partial', [ctx.school.url], 0.6, ctx.school.id);
     }
-    const lines = [d.name || 'Edison Township Public Schools'];
+    const lines = [d.name || this.districtName];
     if (d.phone) lines.push(`Phone: ${d.phone}`);
     if (d.address) lines.push(`Address: ${d.address}`);
     if (d.url) lines.push(`Website: ${d.url}`);
@@ -1099,7 +1163,7 @@
 
   AnswerEngine.prototype.rFactSearch = function (ctx) {
     const all = tokens(ctx.norm).filter((t) => t.length > 2);
-    let terms = all.filter((t) => !STOP.has(t));
+    let terms = all.filter((t) => !this.stop.has(t));
     if (!terms.length) terms = all;
     if (!terms.length) {
       return mk('Ask me about school hours, closings, the calendar, absences, buses, meals or policies.',
@@ -1107,8 +1171,17 @@
     }
     const hits = this.factMatches(terms, ctx.school, [], 3);
     if (!hits.length) {
-      return mk("I couldn't find that in the district's published pages. Try rewording, or check https://www.edison.k12.nj.us",
-                'fact_search', 'none', ['https://www.edison.k12.nj.us'], 0.15);
+      // Two different answers, because they are two different situations.
+      // "I looked and it isn't there" and "nobody has read this district's
+      // pages" both end in no answer, but only one of them is the parent's
+      // fault for asking oddly, and telling them to reword when there is
+      // nothing to search would waste their morning.
+      const where = this.urls.site || "the district's website";
+      const t = (this.pack.facts && this.pack.facts.length)
+        ? "I couldn't find that in the district's published pages. Try rewording, or check " + where
+        : "I don't have " + this.districtShort + "'s pages - only its calendar and its closings. "
+          + 'For policies, school hours and office numbers, check ' + where + '.';
+      return mk(t, 'fact_search', 'none', [this.urls.site], 0.15);
     }
     const f = hits[0].fact;
     let t = `${f.title}:\n${this.factExcerpt(f, terms)}`;
@@ -1151,7 +1224,7 @@
       }
     }
     for (const w of tokens(norm)) {
-      if (STOP.has(w)) continue;
+      if (this.stop.has(w)) continue;
       if (dateish.has(w)) continue;
       if (schoolWords.has(w)) continue;
       if (/^\d+(st|nd|rd|th)?$/.test(w)) continue;
@@ -1183,7 +1256,7 @@
     const t = today || this.today();
 
     if (!norm) {
-      const a = mk('Ask me anything about Edison schools - hours, closings, the calendar, absences.', 'empty', 'empty', [], 0);
+      const a = mk('Ask me anything about ' + this.allSchoolsLabel + ' - hours, closings, the calendar, absences.', 'empty', 'empty', [], 0);
       a.debug = { resolver: 'empty' };
       return a;
     }
@@ -1440,7 +1513,7 @@
 
   // ---------------------------------------------------------------- exports
 
-  global.EdisonEngine = {
+  global.SchoolEngine = global.EdisonEngine = {
     AnswerEngine: AnswerEngine,
     AlertParser: AlertParser,
     friendlyDay: friendlyDay,

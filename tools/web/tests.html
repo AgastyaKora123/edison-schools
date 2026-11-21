@@ -1,0 +1,543 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Edison Parent — engine tests</title>
+<style>
+  :root { color-scheme: light dark; }
+  body { font: 14px/1.5 ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;
+         margin: 0; padding: 20px; max-width: 1000px; }
+  h1 { font-size: 18px; }
+  #summary { position: sticky; top: 0; padding: 12px; margin: 0 0 16px;
+             border-radius: 10px; font-weight: 600; background: #eee; }
+  #summary.pass { background: #0a7; color: #fff; }
+  #summary.fail { background: #c33; color: #fff; }
+  .case { padding: 4px 0; border-bottom: 1px solid rgba(128,128,128,.2); }
+  .ok { color: #0a7; }
+  .bad { color: #c33; font-weight: 600; }
+  .detail { color: #888; white-space: pre-wrap; margin-left: 20px; font-size: 12px; }
+  @media (prefers-color-scheme: dark) { #summary { background: #333; } }
+</style>
+</head>
+<body>
+<h1>Edison Parent — engine tests</h1>
+<div id="summary">running…</div>
+<div id="out"></div>
+
+<script src="data/pack.js"></script>
+<script src="data/rules.js"></script>
+<script src="data/fixtures.js"></script>
+<script src="engine.js"></script>
+<script src="district.js"></script>
+<script>
+/*
+ * Replays tests/questions.jsonl and tests/alerts.jsonl — the same contract
+ * files the PowerShell reference engine is tested against — in a real browser.
+ *
+ * The fixtures are baked into data/fixtures.js at build time so this page
+ * works from file:// with no server.
+ */
+(function () {
+  const E = window.EdisonEngine;
+  const out = document.getElementById('out');
+  const summary = document.getElementById('summary');
+  let pass = 0, fail = 0;
+
+  function record(name, errors, detail) {
+    const div = document.createElement('div');
+    div.className = 'case';
+    if (errors.length) {
+      fail++;
+      div.innerHTML = '<span class="bad">FAIL</span> ' + esc(name);
+      const d = document.createElement('div');
+      d.className = 'detail';
+      d.textContent = errors.join('\n') + (detail ? '\n' + detail : '');
+      div.appendChild(d);
+    } else {
+      pass++;
+      div.innerHTML = '<span class="ok">ok</span> ' + esc(name);
+    }
+    out.appendChild(div);
+  }
+  function esc(s) { return String(s).replace(/[<>&]/g, (c) => ({ '<': '&lt;', '>': '&gt;', '&': '&amp;' }[c])); }
+
+  const engine = new E.AnswerEngine(window.PACK, window.RULES);
+
+  // ---------------------------------------------------- questions.jsonl
+  for (const c of window.FIXTURES.questions) {
+    const today = c.today ? E.fromISO(c.today) : engine.today();
+    let a, errors = [];
+    try {
+      a = engine.answer(c.q, today, c.school || '');
+    } catch (err) {
+      errors.push('THREW: ' + err.message + '\n' + (err.stack || ''));
+      record(c.q || '(empty)', errors, '');
+      continue;
+    }
+    const text = a.answer || '';
+    // Case-insensitive on purpose, and matching the PowerShell harness, whose
+    // -like operator is case-insensitive by default. The contract is about
+    // what an answer says, not how the district capitalised a calendar title:
+    // "Thanksgiving Recess, Schools Closed" should satisfy an expected
+    // "closed".
+    const hay = text.toLowerCase();
+    if (!text.trim()) errors.push('empty answer');
+    if (c.resolver && a.debug.resolver !== c.resolver) {
+      errors.push(`resolver: want '${c.resolver}', got '${a.debug.resolver}'`);
+    }
+    for (const n of (c.contains || [])) {
+      if (n && hay.indexOf(n.toLowerCase()) < 0) errors.push(`missing: '${n}'`);
+    }
+    for (const n of (c.notContains || [])) {
+      if (n && hay.indexOf(n.toLowerCase()) >= 0) errors.push(`should not contain: '${n}'`);
+    }
+    record(c.q || '(empty query)', errors,
+           errors.length ? `slots: ${JSON.stringify(a.debug)}\nanswer: ${text}` : '');
+  }
+
+  // ---------------------------------------------------- alerts.jsonl
+  const parser = new E.AlertParser(window.RULES);
+  for (const f of window.FIXTURES.alerts) {
+    const d = new Date(f.postedAt);
+    const postedAnchor = E.anchor(d.getFullYear(), d.getMonth() + 1, d.getDate());
+    let got, errors = [];
+    try {
+      got = parser.fromStatus(f.status, postedAnchor).map((a) => `${a.kind}@${E.isoOf(a.date)}`);
+    } catch (err) {
+      record('alert: ' + f.name, ['THREW: ' + err.message], '');
+      continue;
+    }
+    const want = (f.expect || []).map((e) => `${e.kind}@${e.date}`);
+    for (const w of want) if (got.indexOf(w) < 0) errors.push(`missing: ${w}`);
+    for (const g of got) if (want.indexOf(g) < 0) errors.push(`extra: ${g}`);
+    record('alert: ' + f.name, errors, errors.length ? 'got: ' + got.join(', ') : '');
+  }
+
+  // ---------------------------------------------------- integration
+  // A check may be asynchronous - anything that reads a calendar is. Those
+  // are collected and awaited at the end, so the count on screen is the
+  // whole count and not whatever had finished when the page drew.
+  const pending = [];
+  function integration(name, fn) {
+    try {
+      const e = fn();
+      if (e && typeof e.then === 'function') {
+        pending.push(e.then(
+          (v) => record(name, v ? [v] : [], ''),
+          (err) => record(name, ['THREW: ' + err.message + '\n' + (err.stack || '')], '')
+        ));
+        return;
+      }
+      record(name, e ? [e] : [], '');
+    } catch (err) {
+      record(name, ['THREW: ' + err.message + '\n' + (err.stack || '')], '');
+    }
+  }
+
+  const packCopy = () => JSON.parse(JSON.stringify(window.PACK));
+
+  // ------------------------------------------------ any district at all
+  //
+  // The app carries one district in full and reads the rest from their own
+  // feeds. These check the reading, and - more importantly - that nothing
+  // belonging to the district it was built for leaks into an answer given
+  // to a parent somewhere else. A phone number from the wrong state is
+  // worse than no phone number: it is a wasted call to a stranger.
+
+  const DD = window.DistrictData;
+
+  // A small district, written out by hand so these never touch the network.
+  const OTHER_ICS = [
+    'BEGIN:VCALENDAR', 'VERSION:2.0', 'BEGIN:VTIMEZONE', 'TZID:America/Chicago', 'END:VTIMEZONE',
+    'BEGIN:VEVENT', 'UID:a1', 'DTSTART;VALUE=DATE:20261126', 'DTEND;VALUE=DATE:20261128',
+    'SUMMARY:Districtwide: Thanksgiving Break', 'END:VEVENT',
+    'BEGIN:VEVENT', 'UID:a2', 'DTSTART;VALUE=DATE:20261218', 'DTEND;VALUE=DATE:20261219',
+    'SUMMARY:Early Dismissal', 'END:VEVENT',
+    'BEGIN:VEVENT', 'UID:a3', 'DTSTART;VALUE=DATE:20270115', 'DTEND;VALUE=DATE:20270116',
+    'SUMMARY:Schools Closed\\, Staff Development', 'END:VEVENT',
+    'END:VCALENDAR'
+  ].join('\r\n');
+
+  integration('any district: an all-day end date is exclusive', function () {
+    if (!DD) return 'district.js did not load';
+    const evs = DD.parseIcs(OTHER_ICS);
+    if (evs.length !== 3) return 'expected 3 events, got ' + evs.length;
+    // 26th to 28th exclusive is the 26th and 27th, not three days.
+    if (evs[0].date !== '2026-11-26') return 'start: ' + evs[0].date;
+    if (evs[0].endDate !== '2026-11-27') return 'end should be inclusive 27th, got ' + evs[0].endDate;
+    // A one-day event starts and ends the same day.
+    if (evs[1].date !== evs[1].endDate) return 'one-day event spans: ' + evs[1].date + '..' + evs[1].endDate;
+    return null;
+  });
+
+  integration('any district: escaped commas and timezone', function () {
+    if (!DD) return 'district.js did not load';
+    if (DD.icsTimeZone(OTHER_ICS) !== 'America/Chicago') return 'timezone: ' + DD.icsTimeZone(OTHER_ICS);
+    const evs = DD.parseIcs(OTHER_ICS);
+    if (evs[2].summary !== 'Schools Closed, Staff Development') return 'summary: ' + evs[2].summary;
+    return null;
+  });
+
+  integration('any district: an entry means the same thing either way', function () {
+    if (!DD) return 'district.js did not load';
+    const k = (s) => DD.eventKind(window.RULES, s, '');
+    const want = {
+      'Districtwide: Early Dismissal': 'early_dismissal',
+      'Thanksgiving Break': 'break',
+      'Schools Closed': 'closed',
+      'Delayed Opening': 'delayed_opening',
+      'Single Session Day': 'single_session',
+      'Picture Day': 'event'
+    };
+    for (const s of Object.keys(want)) {
+      if (k(s) !== want[s]) return s + ' -> ' + k(s) + ', wanted ' + want[s];
+    }
+    if (DD.cleanTitle(window.RULES, 'Districtwide: Early Dismissal') !== 'Early Dismissal') {
+      return 'prefix not stripped: ' + DD.cleanTitle(window.RULES, 'Districtwide: Early Dismissal');
+    }
+    return null;
+  });
+
+  integration('any district: a description cannot invent a day off', function () {
+    if (!DD) return 'district.js did not load';
+    // A real one. The description was a slab of pasted Word markup whose
+    // stylesheet contained "page-break", and the evening performance was
+    // read as a school break - a parent would have kept a child at home.
+    const wordMarkup = '<html><head><style><!--@font-face{font-family:"Cambria Math"}' +
+                       'p.MsoNormal{page-break-after:avoid;word-break:normal}--></style></head>' +
+                       '<body>Come and see the show. No school required.</body></html>';
+    const k = DD.eventKind(window.RULES, 'Theatre- All The Ways the World Will End But Not You', wordMarkup);
+    if (k !== 'event') return 'a play became a ' + k;
+    // And the title still decides, as it always did.
+    if (DD.eventKind(window.RULES, 'Spring Break', wordMarkup) !== 'break') return 'a real break stopped working';
+    return null;
+  });
+
+  /** A district read live: calendar and closings, no pages, no numbers. */
+  function otherDistrictPack() {
+    const evs = DD.parseIcs(OTHER_ICS);
+    return {
+      schemaVersion: 1,
+      generatedAt: new Date().toISOString(),
+      district: { name: 'Blytheville School District', shortName: '', url: '', orgId: 110,
+                  phone: '', address: '', timeZone: 'America/Chicago',
+                  pages: { calendar: '', events: '', hours: '', feed: '' } },
+      schools: [{ id: 'bhs', name: 'BHS', shortName: 'BHS', level: 'high',
+                  aliases: ['bhs'], sectionId: '1' }],
+      bells: [],
+      calendar: evs.map((e) => ({
+        date: e.date, endDate: e.endDate,
+        title: DD.cleanTitle(window.RULES, e.summary), rawTitle: e.summary,
+        kind: DD.eventKind(window.RULES, e.summary, ''),
+        scope: 'district', schoolIds: [], allDay: true, startTime: null, url: ''
+      })),
+      facts: [], contacts: [], alertFeedUrl: '', schoolFeedUrls: {}, alerts: []
+    };
+  }
+
+  integration('any district: nothing from the built-in district leaks', function () {
+    if (!DD) return 'district.js did not load';
+    const eng = new E.AnswerEngine(otherDistrictPack(), window.RULES);
+    const today = E.fromISO('2026-11-21');
+    const asks = ['is there school tomorrow', 'when is thanksgiving break', 'how do i report my child absent',
+                  'what is the dress code', 'what time does school start', 'whats the phone number',
+                  'when is the next early dismissal', '', 'how many days off are left this year'];
+    for (const q of asks) {
+      const a = eng.answer(q, today, '');
+      const text = (a.answer || '') + ' ' + (a.sources || []).join(' ');
+      if (/edison/i.test(text)) return q + ' mentions Edison: ' + a.answer;
+      if (/732-452-4900|732\.452\.4900/.test(text)) return q + ' gives the wrong phone number: ' + a.answer;
+      if (/k12\.nj\.us/.test(text)) return q + ' links New Jersey: ' + text;
+    }
+    return null;
+  });
+
+  integration('any district: says it has no pages rather than drawing a blank', function () {
+    if (!DD) return 'district.js did not load';
+    const eng = new E.AnswerEngine(otherDistrictPack(), window.RULES);
+    const a = eng.answer('what is the dress code', E.fromISO('2026-11-21'), '');
+    if (!/don't have|do not have/i.test(a.answer)) return 'should say it has no pages: ' + a.answer;
+    if (/try rewording/i.test(a.answer)) return 'should not blame the wording: ' + a.answer;
+    return null;
+  });
+
+  integration('any district: the calendar still answers', function () {
+    if (!DD) return 'district.js did not load';
+    const eng = new E.AnswerEngine(otherDistrictPack(), window.RULES);
+    const today = E.fromISO('2026-11-21');
+    const a = eng.answer('is there school on november 26', today, '');
+    if (!/no/i.test(a.answer)) return 'Nov 26 should be closed: ' + a.answer;
+    const b = eng.answer('when is the next early dismissal', today, '');
+    if (b.answer.indexOf('Dec') < 0) return 'next early dismissal should be in December: ' + b.answer;
+    return null;
+  });
+
+  integration('any district: no districtwide calendar still answers', async function () {
+    if (!DD) return 'district.js did not load';
+    // Two schools, each publishing the same closing plus one of its own.
+    // No districtwide calendar at all, which some districts genuinely have.
+    const ics = (own) => [
+      'BEGIN:VCALENDAR', 'VERSION:2.0',
+      'BEGIN:VEVENT', 'UID:s1', 'DTSTART;VALUE=DATE:20270115', 'DTEND;VALUE=DATE:20270116',
+      'SUMMARY:Schools Closed', 'END:VEVENT',
+      'BEGIN:VEVENT', 'UID:s2', 'DTSTART;VALUE=DATE:20270120', 'DTEND;VALUE=DATE:20270121',
+      'SUMMARY:' + own, 'END:VEVENT',
+      'END:VCALENDAR'
+    ].join('\r\n');
+
+    // Stand in for the network so this stays a test and not a weather report.
+    const realFetch = window.fetch;
+    window.fetch = async function (url) {
+      const u = String(url);
+      if (u.indexOf('page_no=9999') >= 0) {
+        return { ok: true, json: async () => ({ meta: { sections: [
+          { id: 1, name: 'North High' }, { id: 2, name: 'South High' }
+        ] } }) };
+      }
+      const own = u.indexOf('section_ids=1') >= 0 ? 'North Picture Day' : 'South Picture Day';
+      return { ok: true, text: async () => ics(own) };
+    };
+    try {
+      const pack = await DD.build({ orgId: 1, name: 'Nowhere Schools' }, window.RULES);
+      const closings = pack.calendar.filter((c) => c.title === 'Schools Closed');
+      if (closings.length !== 1) return 'shared closing kept ' + closings.length + ' times, wanted 1';
+      if (closings[0].scope !== 'district') return 'shared closing should count as districtwide';
+      const pic = pack.calendar.filter((c) => /Picture Day/.test(c.title));
+      if (pic.length !== 2) return 'expected both picture days, got ' + pic.length;
+      if (pic.some((p) => p.scope !== 'school')) return "one school's event should stay that school's";
+
+      // The point of all that: a parent who has picked no school still gets told.
+      const eng = new E.AnswerEngine(pack, window.RULES);
+      const a = eng.answer('is there school on january 15', E.fromISO('2027-01-10'), '');
+      if (!/no/i.test(a.answer)) return 'should say no school: ' + a.answer;
+    } finally {
+      window.fetch = realFetch;
+    }
+    return null;
+  });
+
+  integration('any district: a snow day still beats the calendar', function () {
+    if (!DD) return 'district.js did not load';
+    // The whole point of the thing, for a district nobody has crawled: an
+    // announcement posted the afternoon before overrides a calendar that
+    // says school is on.
+    const pack = otherDistrictPack();
+    pack.alertFeedUrl = DD.API + '/110/cms/live_feeds';
+    const parser = new E.AlertParser(window.RULES);
+    const alerts = parser.fromFeed({ live_feeds: [{
+      id: 1,
+      status: 'Due to the winter storm, Blytheville School District will be closed tomorrow, Tuesday, January 12.',
+      formatted_date: '2027-01-11 15:10:00', time: '2027-01-11T15:10:00-06:00', author_name: 'District'
+    }] });
+    if (!alerts.length) return 'the announcement was not understood';
+    if (alerts[0].kind !== 'closed' || alerts[0].date !== '2027-01-12') {
+      return 'read as ' + alerts[0].kind + ' on ' + alerts[0].date;
+    }
+    pack.alerts = alerts;
+    const a = new E.AnswerEngine(pack, window.RULES).answer('is there school tomorrow', E.fromISO('2027-01-11'), '');
+    if (a.answer.indexOf('No') !== 0) return 'expected No: ' + a.answer;
+    if (a.answer.indexOf('Blytheville') < 0) return 'should name the district: ' + a.answer;
+    if (a.answer.indexOf('announcement posted') < 0) return 'should cite the announcement: ' + a.answer;
+    return null;
+  });
+
+  integration('any district: a short name is worked out from the full one', function () {
+    const short = (n) => new E.AnswerEngine({ district: { name: n } }, window.RULES).districtShort;
+    const want = {
+      'Edison Township Public Schools': 'Edison',
+      'Conroe Independent School District': 'Conroe',
+      'Blytheville School District': 'Blytheville',
+      'Clifton ISD': 'Clifton',
+      'Bay Village City School District': 'Bay Village'
+    };
+    for (const n of Object.keys(want)) {
+      if (short(n) !== want[n]) return n + ' -> "' + short(n) + '", wanted "' + want[n] + '"';
+    }
+    return null;
+  });
+
+  integration('override: a live closing beats the calendar', function () {
+    const p = packCopy();
+    const today = E.fromISO('2026-12-09');
+    p.alerts = [];
+    const before = new E.AnswerEngine(p, window.RULES).answer('is there school tomorrow', today);
+    if (before.answer.indexOf('open') < 0) return 'baseline not open: ' + before.answer;
+
+    p.alerts = [{ id: '999-closed-2026-12-10', kind: 'closed', date: '2026-12-10',
+                  postedAt: '2026-12-09T15:02:00-05:00',
+                  text: 'Due to inclement weather, Edison Township Public Schools will be closed tomorrow, Thursday, December 10.',
+                  author: 'District', scope: 'district', schoolId: null }];
+    const after = new E.AnswerEngine(p, window.RULES).answer('is there school tomorrow', today);
+    if (after.answer.indexOf('No') !== 0) return 'expected No: ' + after.answer;
+    if (after.answer.indexOf('closed') < 0) return 'expected closed: ' + after.answer;
+    if (after.answer.indexOf('announcement posted') < 0) return 'should cite the announcement: ' + after.answer;
+    if (after.answer.indexOf('..') >= 0) return 'doubled period: ' + after.answer;
+    if (!after.sources.some((s) => s.indexOf('live-feed') >= 0)) return 'should link the live feed';
+    return null;
+  });
+
+  integration('scope: one school closing does not close another', function () {
+    const p = packCopy();
+    const today = E.fromISO('2026-12-09');
+    p.alerts = [{ id: '997', kind: 'closed', date: '2026-12-10',
+                  postedAt: '2026-12-09T15:02:00-05:00',
+                  text: 'Lincoln Elementary School will be closed tomorrow due to a water main break.',
+                  author: 'Lincoln', scope: 'school', schoolId: 'les' }];
+    const eng = new E.AnswerEngine(p, window.RULES);
+    const lincoln = eng.answer('is there school tomorrow at Lincoln', today);
+    if (lincoln.answer.indexOf('closed') < 0) return 'Lincoln should be closed: ' + lincoln.answer;
+    const woodbrook = eng.answer('is there school tomorrow at Woodbrook', today);
+    if (woodbrook.answer.indexOf('open') < 0) return 'Woodbrook must stay open: ' + woodbrook.answer;
+    const unnamed = eng.answer('is there school tomorrow', today);
+    if (unnamed.answer.indexOf('open') < 0) return 'unnamed must stay open: ' + unnamed.answer;
+    return null;
+  });
+
+  integration('delayed opening shifts bell times', function () {
+    const p = packCopy();
+    p.alerts = [{ id: '998', kind: 'delayed_opening', date: '2026-12-10',
+                  postedAt: '2026-12-09T15:02:00-05:00', text: 'two-hour delayed opening tomorrow',
+                  author: '', scope: 'district', schoolId: null }];
+    const a = new E.AnswerEngine(p, window.RULES)
+      .answer('what time does middle school start tomorrow', E.fromISO('2026-12-09'));
+    return a.answer.indexOf('10:25 AM') >= 0 ? null : 'expected 10:25 AM: ' + a.answer;
+  });
+
+  // A follow-up should mean what it obviously means. These run as real
+  // conversations, each question handed the previous one's context.
+  integration('conversation: follow-ups keep the thread', function () {
+    const eng = new E.AnswerEngine(window.PACK, window.RULES);
+    const today = E.fromISO('2026-11-20');
+    let prev = null;
+    const say = (q) => { const a = eng.answer(q, today, 'wwms', prev); prev = a.context; return a.answer; };
+
+    const a1 = say('is there school on november 25');
+    if (a1.indexOf('November 25, 2026') < 0) return 'first answer wrong: ' + a1;
+
+    // "what time?" means that day, and should give times rather than repeat.
+    const a2 = say('what time?');
+    if (a2.indexOf('November 25, 2026') < 0) return 'lost the date: ' + a2;
+    if (a2.indexOf('1:00 PM') < 0) return 'should give the early dismissal time: ' + a2;
+
+    // A new date in a follow-up replaces the old one.
+    const a3 = say('what about november 26?');
+    if (a3.indexOf('November 26, 2026') < 0) return 'did not move to the 26th: ' + a3;
+
+    // A bare ordinal takes the month from the conversation.
+    const a4 = say('and the 27th?');
+    if (a4.indexOf('November 27, 2026') < 0) return 'bare ordinal failed: ' + a4;
+
+    const a5 = say('and the 30th?');
+    if (a5.indexOf('November 30, 2026') < 0) return 'bare ordinal failed: ' + a5;
+    return null;
+  });
+
+  integration('conversation: a new topic is not hijacked by the last one', function () {
+    const eng = new E.AnswerEngine(window.PACK, window.RULES);
+    const today = E.fromISO('2026-11-20');
+    let prev = null;
+    const say = (q) => { const a = eng.answer(q, today, '', prev); prev = a.context; return a; };
+
+    say('is there school tomorrow');
+    // "what about the bus" is a follow-up in shape but names its own topic.
+    const bus = say('what about transportation?');
+    if (bus.debug.resolver === 'school_status') {
+      return 'a named topic should not inherit the last question: ' + bus.answer;
+    }
+    return null;
+  });
+
+  integration('conversation: the school sticks across questions', function () {
+    const eng = new E.AnswerEngine(window.PACK, window.RULES);
+    const today = E.fromISO('2026-11-20');
+    let prev = null;
+    const say = (q) => { const a = eng.answer(q, today, '', prev); prev = a.context; return a; };
+
+    const first = say('what time does Herbert Hoover start');
+    if (first.debug.schoolSlot !== 'hhms') return 'did not pick up Herbert Hoover';
+    const second = say('what time?');
+    if (second.debug.schoolSlot !== 'hhms') return 'lost the school on the follow-up';
+    return null;
+  });
+
+  integration('merge drops a school echo of a district alert', function () {
+    const merged = E.AlertParser.merge([
+      { id: 'd', kind: 'closed', date: '2026-12-10', postedAt: '2026-12-09T15:00:00Z', schoolId: null },
+      { id: 's', kind: 'closed', date: '2026-12-10', postedAt: '2026-12-09T15:30:00Z', schoolId: 'les' }
+    ]);
+    if (merged.length !== 1) return 'expected 1, got ' + merged.length;
+    if (merged[0].schoolId) return 'the district copy should survive';
+    return null;
+  });
+
+  integration('week starts on Monday', function () {
+    if (E.isoOf(E.weekStart(E.fromISO('2026-11-20'))) !== '2026-11-16') return 'Friday case wrong';
+    if (E.isoOf(E.weekStart(E.fromISO('2026-11-22'))) !== '2026-11-16') return 'Sunday belongs to the week just ended';
+    return null;
+  });
+
+  integration('bare month+day prefers the future', function () {
+    const eng = new E.AnswerEngine(window.PACK, window.RULES);
+    const nov = E.fromISO('2026-11-20');
+    if (E.isoOf(eng.resolveMonthDay(3, 10, 0, nov)) !== '2027-03-10') return 'march should be next year';
+    if (E.isoOf(eng.resolveMonthDay(11, 18, 0, nov)) !== '2026-11-18') return 'recent past should stay';
+    return null;
+  });
+
+  integration('every school resolves from its own name', function () {
+    const eng = new E.AnswerEngine(window.PACK, window.RULES);
+    for (const s of window.PACK.schools) {
+      const got = eng.resolveSchool(E.normalize('what time does ' + s.name + ' start'));
+      if (!got || got.id !== s.id) return `'${s.name}' resolved to ${got ? got.id : 'nothing'}`;
+    }
+    return null;
+  });
+
+  integration('every level has complete bell times', function () {
+    for (const lvl of ['elementary', 'middle', 'high']) {
+      const b = window.PACK.bells.find((x) => x.level === lvl);
+      if (!b) return 'no bells for ' + lvl;
+      if (!b.regular || !b.delayed || !b.early) return 'incomplete bells for ' + lvl;
+    }
+    return null;
+  });
+
+  integration('nasty input never crashes or returns empty', function () {
+    const eng = new E.AnswerEngine(window.PACK, window.RULES);
+    const nasty = ['', '   ', '?????', '🎉🎉', 'a', '/////', '12/99/9999',
+                   'is school open on february 30', 'next next next',
+                   'school '.repeat(200)];
+    for (const q of nasty) {
+      const a = eng.answer(q);
+      if (!a || !a.answer) return 'empty answer for: ' + q.slice(0, 20);
+    }
+    return null;
+  });
+
+  integration('malformed feeds are ignored', function () {
+    const p = new E.AlertParser(window.RULES);
+    for (const bad of [null, {}, { live_feeds: null }, { live_feeds: [{}] }, { live_feeds: 'x' }]) {
+      const r = p.fromFeed(bad);
+      if (r.length) return 'expected nothing from ' + JSON.stringify(bad);
+    }
+    return null;
+  });
+
+  // ---------------------------------------------------- summary
+  function finish() {
+    summary.textContent = `${pass} passed, ${fail} failed`;
+    summary.className = fail === 0 ? 'pass' : 'fail';
+    window.__TEST_RESULT__ = { pass: pass, fail: fail };
+  }
+  if (pending.length) {
+    summary.textContent = 'running…';
+    window.__TEST_RESULT__ = null;   // not a result yet; a reader must wait
+    Promise.all(pending).then(finish, finish);
+  } else {
+    finish();
+  }
+})();
+</script>
+</body>
+</html>

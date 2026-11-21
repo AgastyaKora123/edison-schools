@@ -7,7 +7,21 @@ window.PACK = {
                      "url":  "https://www.edison.k12.nj.us",
                      "phone":  "732-452-4900",
                      "address":  "312 Pierson Avenue, Edison, New Jersey 08837",
-                     "timeZone":  "America/New_York"
+                     "timeZone":  "America/New_York",
+                     "shortName":  "Edison",
+                     "orgId":  20425,
+                     "pages":  {
+                                   "calendar":  "https://www.edison.k12.nj.us/page/district-yearly-calendar/",
+                                   "events":  "https://www.edison.k12.nj.us/events/",
+                                   "hours":  "https://www.edison.k12.nj.us/page/school-hours/",
+                                   "feed":  "https://www.edison.k12.nj.us/live-feed/"
+                               },
+                     "levelLabels":  {
+                                         "elementary":  "Elementary schools (K-5)",
+                                         "academy":  "Edison Success Academy",
+                                         "eelc":  "Edison Early Learning Center",
+                                         "fdr":  "FDR Preschool"
+                                     }
                  },
     "schools":  [
                     {

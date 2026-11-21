@@ -1,7 +1,7 @@
 {
-  "name": "Edison School Answers",
-  "short_name": "Edison Schools",
-  "description": "Hours, closings, breaks and absences for Edison Township Public Schools.",
+  "name": "School Answers",
+  "short_name": "Schools",
+  "description": "Hours, closings, breaks and absences, from your school district's own published information.",
   "start_url": ".",
   "scope": ".",
   "display": "standalone",

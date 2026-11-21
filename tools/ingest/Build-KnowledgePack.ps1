@@ -34,7 +34,17 @@ param(
     [string] $OutFile,
     [switch] $SkipSchoolPages,
     [switch] $Offline,
-    [string] $CacheDir
+    [string] $CacheDir,
+
+    # Which district to collect. The defaults are Edison, the district this
+    # was written for; every other district on the same website software
+    # works the same way, which is why these are arguments rather than
+    # constants buried in the file.
+    [string] $DistrictHost = 'www.edison.k12.nj.us',
+    [int]    $OrgId        = 20425,
+    [string] $DistrictName = 'Edison Township Public Schools',
+    [string] $DistrictShortName = 'Edison',
+    [string] $TimeZone     = 'America/New_York'
 )
 
 $ErrorActionPreference = 'Stop'
@@ -52,9 +62,7 @@ if (-not $OutFile)  { $OutFile  = Join-Path (Split-Path -Parent $Here) 'dist\kno
 if (-not $CacheDir) { $CacheDir = Join-Path $Here '.cache' }
 if (-not (Test-Path $CacheDir)) { New-Item -ItemType Directory -Path $CacheDir -Force | Out-Null }
 
-$DistrictHost = 'www.edison.k12.nj.us'
-$OrgId        = 20425
-$ApiBase      = "https://thrillshare-cmsv2.services.thrillshare.com/api/v4/o/$OrgId/cms"
+$ApiBase = "https://thrillshare-cmsv2.services.thrillshare.com/api/v4/o/$OrgId/cms"
 
 $script:Stats = [ordered]@{ fetched = 0; cached = 0; failed = 0 }
 
@@ -600,11 +608,29 @@ $pack = [ordered]@{
     schemaVersion = 1
     generatedAt   = (Get-Date).ToUniversalTime().ToString('yyyy-MM-ddTHH:mm:ssZ')
     district      = [ordered]@{
-        name     = 'Edison Township Public Schools'
-        url      = "https://$DistrictHost"
-        phone    = '732-452-4900'
-        address  = '312 Pierson Avenue, Edison, New Jersey 08837'
-        timeZone = 'America/New_York'
+        name      = $DistrictName
+        shortName = $DistrictShortName
+        url       = "https://$DistrictHost"
+        orgId     = $OrgId
+        phone     = '732-452-4900'
+        address   = '312 Pierson Avenue, Edison, New Jersey 08837'
+        timeZone  = $TimeZone
+        # Where an answer sends you to check for yourself. Each district
+        # arranges its own site, so these travel with its information rather
+        # than being written into the engine.
+        pages     = [ordered]@{
+            calendar = "https://$DistrictHost/page/district-yearly-calendar/"
+            events   = "https://$DistrictHost/events/"
+            hours    = "https://$DistrictHost/page/school-hours/"
+            feed     = "https://$DistrictHost/live-feed/"
+        }
+        # Groupings this district uses beyond elementary/middle/high.
+        levelLabels = [ordered]@{
+            elementary = 'Elementary schools (K-5)'
+            academy    = 'Edison Success Academy'
+            eelc       = 'Edison Early Learning Center'
+            fdr        = 'FDR Preschool'
+        }
     }
     schools  = @($schools)
     bells    = @($bells)

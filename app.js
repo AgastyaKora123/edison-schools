@@ -1,5 +1,5 @@
 /*
- * app.js — UI for Edison School Answers.
+ * app.js — UI for School Answers.
  *
  * All the thinking lives in engine.js; this file only renders it and handles
  * the one network call (the district's live feed, for closings).
@@ -7,9 +7,15 @@
 (function () {
   'use strict';
 
-  const E = window.EdisonEngine;
-  const PACK = window.PACK;
+  const E = window.SchoolEngine || window.EdisonEngine;
   const RULES = window.RULES;
+
+  // The district the app was built with, collected in full: its pages, its
+  // bell times, its office numbers. Any other district is read live instead,
+  // which gets the calendar and the closings but not the pages - see
+  // district.js for why.
+  const BUNDLED = window.PACK;
+  let PACK = BUNDLED;
 
   const el = (id) => document.getElementById(id);
   const thread = el('thread');
@@ -517,8 +523,7 @@
     const today = eng.today();
     const mine = schoolIds.map(schoolById).filter(Boolean).map((s) => s.name);
 
-    let p = 'You are Schoolo, answering questions for a parent in the Edison Township Public ';
-    p += 'Schools district in New Jersey.\n';
+    let p = 'You are Schoolo, answering questions for a parent in ' + districtName() + '.\n';
     p += 'Today is ' + E.dateLong(today) + '.\n';
     if (mine.length) p += 'Their children attend: ' + mine.join(', ') + '.\n';
 
@@ -531,7 +536,7 @@
     p += '\nCall as many as you need. Work out dates yourself before calling: if they say ';
     p += '"next Tuesday", convert it using today\'s date above.\n';
     p += '\nNever invent a date, a time or a phone number — if a tool did not give it to you, ';
-    p += 'say you could not find it and point them to edison.k12.nj.us or their school office.\n';
+    p += 'say you could not find it and point them to ' + (siteHost() || "the district's website") + " or their school office.\n";
     p += 'Answer in two to four short sentences, plainly, for a parent in a hurry. ';
     p += 'No headings and no bullet points unless you are listing dates, which you may list ';
     p += 'one per line.\n';
@@ -770,15 +775,35 @@
    * screen and Settings, so there is one list to keep right rather than two.
    */
   function buildPicker(container, idPrefix, onChange) {
-    if (container.childNodes.length) return;
-    const order = ['elementary', 'middle', 'high', 'academy', 'eelc', 'fdr'];
-    for (const lvl of order) {
-      const group = (PACK.schools || []).filter((s) => s.level === lvl)
+    // Rebuilt from scratch, because changing district changes the schools.
+    // This used to bail out if anything was already drawn, which left the
+    // previous district's school list on screen under the new district's
+    // name - a parent would have ticked a school in another state.
+    container.textContent = '';
+
+    // The three levels every district has, first and in the order a parent
+    // thinks of them; then whatever else this district happens to run, in
+    // its own words; then anything the level of which we could not work out,
+    // which for a district read live is most of them. Nothing is dropped for
+    // not fitting a category - a school missing from this list is a school a
+    // parent cannot pick.
+    const levels = [];
+    for (const l of ['elementary', 'middle', 'high']) levels.push(l);
+    for (const s of (PACK.schools || [])) {
+      if (s.level && levels.indexOf(s.level) < 0) levels.push(s.level);
+    }
+    levels.push('');
+
+    const districtLabels = (PACK.district && PACK.district.levelLabels) || null;
+    for (const lvl of levels) {
+      const group = (PACK.schools || []).filter((s) => (s.level || '') === lvl)
         .sort((a, b) => a.name.localeCompare(b.name));
       if (!group.length) continue;
       const g = document.createElement('div');
       g.className = 'grp';
-      g.textContent = E.levelLabel(lvl);
+      g.textContent = lvl ? E.levelLabel(lvl, districtLabels)
+                          : (levels.some((l) => l && (PACK.schools || []).some((s) => s.level === l))
+                             ? 'Other schools' : 'Schools');
       container.appendChild(g);
       for (const s of group) {
         const lab = document.createElement('label');
@@ -822,6 +847,24 @@
     buildPicker(el('schoolpicker'), 'sch-', () => { applySchool(); checkAlerts(); });
     syncPickers();
 
+    renderBranding();
+
+    const dstat = el('districtstat');
+    if (dstat) {
+      dstat.textContent = '';
+      const line = document.createElement('span');
+      line.textContent = districtName();
+      dstat.appendChild(line);
+      const what = document.createElement('span');
+      // Said plainly, because the difference is real and a parent who does
+      // not know it will think the app is broken when it cannot find their
+      // district's dress code.
+      what.textContent = hasPages()
+        ? 'Calendar, closings, school hours, office numbers and the district’s pages.'
+        : 'Calendar and closings, read from this district’s own feed. Its pages — policies, hours, office numbers — have not been collected, so questions about those go unanswered.';
+      dstat.appendChild(what);
+    }
+
     const stat = el('alertstat');
     const help = el('alerthelp');
     if (alertStatus.state === 'ok') {
@@ -850,7 +893,7 @@
 
   function applySchool() {
     const names = schoolIds.map(schoolById).filter(Boolean).map((s) => s.shortName);
-    el('scopeline').textContent = names.length ? names.join(' · ') : 'Edison Township Public Schools';
+    el('scopeline').textContent = names.length ? names.join(' · ') : districtName();
 
     // Once the glance card is answering today's question, the "here is what
     // this app does" paragraph is just pushing the suggestions off screen.
@@ -863,19 +906,30 @@
 
   // ---------------------------------------------------------------- chips
 
-  const SUGGESTIONS = [
+  // Offered to someone who has not asked anything yet, so they can see what
+  // the app is for. The second list is only offered where the district's
+  // pages have been read: suggesting "how do I report my child absent" to
+  // someone the app cannot answer that for is a small cruelty.
+  const SUGGESTIONS_CALENDAR = [
     'Is there school tomorrow?',
-    'What time does school start?',
     'When is the next early dismissal?',
     'When is spring break?',
-    'How do I report my child absent?',
     "What's on the calendar next week?"
+  ];
+  const SUGGESTIONS_PAGES = [
+    'What time does school start?',
+    'How do I report my child absent?'
   ];
 
   function renderChips() {
     const box = el('chips');
     if (!box) return;
-    for (const s of SUGGESTIONS) {
+    // Rebuilt, not added to: changing district changes what can be asked.
+    box.textContent = '';
+    const list = hasPages()
+      ? SUGGESTIONS_CALENDAR.slice(0, 2).concat(SUGGESTIONS_PAGES, SUGGESTIONS_CALENDAR.slice(2))
+      : SUGGESTIONS_CALENDAR;
+    for (const s of list) {
       const b = document.createElement('button');
       b.type = 'button';
       b.className = 'chip';
@@ -938,6 +992,252 @@
     if (!document.hidden) checkAlerts();
   });
 
+  // ---------------------------------------------------------------- district
+
+  /**
+   * Choosing a district.
+   *
+   * The app knows of several thousand, from a list built once by searching
+   * the platform they all share. It carries only one of them in full; the
+   * rest are read from their own public feeds when a parent picks them, and
+   * kept on the phone afterwards so the app still answers with no signal.
+   */
+  const DISTRICTS = (window.DISTRICTS || []).slice();
+  const DD = window.DistrictData;
+
+  const bundledOrgId = (BUNDLED.district && BUNDLED.district.orgId) || 0;
+
+  // The district carried in full is always offered, whether or not the
+  // search happened to list it, and under its own proper name. The search
+  // list names districts after the folder they upload into, which for this
+  // one reads "Edison Public Schools" where the district calls itself
+  // "Edison Township Public Schools" - and a parent who picks one name
+  // should not then see a different one at the top of the screen.
+  if (bundledOrgId) {
+    const bd = BUNDLED.district || {};
+    const row = {
+      o: bundledOrgId,
+      n: bd.name || 'Your district',
+      s: '',
+      u: String(bd.url || '').replace(/^https?:\/\//, ''),
+      k: (BUNDLED.schools || []).length
+    };
+    const at = DISTRICTS.findIndex((d) => d.o === bundledOrgId);
+    if (at >= 0) DISTRICTS.splice(at, 1);
+    DISTRICTS.unshift(row);
+  }
+  const PACK_KEY = (orgId) => 'districtPack:' + orgId;
+  // Calendars change a few times a year, so a month-old copy is fine. The
+  // things that change hour to hour - closings - are never cached: those are
+  // fetched live every time the app opens.
+  const PACK_MAX_AGE_DAYS = 30;
+
+  function savedDistrictOrgId() {
+    const v = parseInt(store.get('districtOrgId', ''), 10);
+    return v > 0 ? v : bundledOrgId;
+  }
+
+  function districtRow(orgId) {
+    return DISTRICTS.find((d) => d.o === orgId) || null;
+  }
+
+  function cachedPack(orgId) {
+    try {
+      const raw = localStorage.getItem(PACK_KEY(orgId));
+      if (!raw) return null;
+      const p = JSON.parse(raw);
+      const age = (Date.now() - Date.parse(p.generatedAt || 0)) / 86400000;
+      if (!(age >= 0) || age > PACK_MAX_AGE_DAYS) return null;
+      return p;
+    } catch (e) { return null; }
+  }
+
+  function cachePack(orgId, pack) {
+    // Only ever one district's copy on the phone. A family uses one
+    // district, and a big one runs to most of a megabyte; keeping every
+    // district anyone ever looked at would eventually fill the quota and
+    // start failing the save that matters.
+    try {
+      const keep = PACK_KEY(orgId);
+      const stale = [];
+      for (let i = 0; i < localStorage.length; i++) {
+        const k = localStorage.key(i);
+        if (k && k.indexOf('districtPack:') === 0 && k !== keep) stale.push(k);
+      }
+      for (const k of stale) localStorage.removeItem(k);
+    } catch (e) { /* ignore */ }
+
+    try { localStorage.setItem(PACK_KEY(orgId), JSON.stringify(pack)); }
+    catch (e) { /* a full or blocked store just means we rebuild next time */ }
+  }
+
+  /**
+   * Makes `orgId` the district in use, fetching its information if this is
+   * the first time. Returns true if it worked.
+   */
+  async function useDistrict(orgId, onStep) {
+    if (!orgId || orgId === bundledOrgId) {
+      PACK = BUNDLED;
+      store.set('districtOrgId', String(bundledOrgId));
+      return true;
+    }
+    let p = cachedPack(orgId);
+    if (!p) {
+      if (!DD) return false;
+      const row = districtRow(orgId);
+      p = await DD.build({
+        orgId: orgId,
+        name: row ? row.n : 'Your district',
+        url: row && row.u ? 'https://' + row.u : ''
+      }, RULES, onStep);
+      cachePack(orgId, p);
+    }
+    PACK = p;
+    store.set('districtOrgId', String(orgId));
+    return true;
+  }
+
+  /** Districts whose name starts with, or contains, what has been typed. */
+  function searchDistricts(q, limit) {
+    const s = String(q || '').trim().toLowerCase();
+    if (s.length < 2) return [];
+    const starts = [], contains = [];
+    for (const d of DISTRICTS) {
+      const n = d.n.toLowerCase();
+      if (n.startsWith(s)) starts.push(d);
+      else if (n.indexOf(s) >= 0 || (d.s || '').toLowerCase() === s) contains.push(d);
+      if (starts.length >= limit) break;
+    }
+    return starts.concat(contains).slice(0, limit);
+  }
+
+  function renderDistrictResults() {
+    const box = el('district-results');
+    const note = el('district-note');
+    if (!box) return;
+    const q = (el('district-search') || {}).value || '';
+    box.textContent = '';
+    if (q.trim().length < 2) {
+      note.textContent = DISTRICTS.length
+        ? DISTRICTS.length.toLocaleString() + ' districts to choose from.'
+        : '';
+      return;
+    }
+    const hits = searchDistricts(q, 10);
+    if (!hits.length) {
+      note.textContent = "No district by that name. It may not publish its calendar this way.";
+      return;
+    }
+    note.textContent = '';
+    for (const d of hits) {
+      const b = document.createElement('button');
+      b.type = 'button';
+      b.className = 'dresult';
+      const name = document.createElement('b');
+      name.textContent = d.n;
+      const sub = document.createElement('span');
+      sub.textContent = [d.s, d.k ? d.k + ' schools' : ''].filter(Boolean).join(' · ');
+      b.appendChild(name);
+      b.appendChild(sub);
+      b.addEventListener('click', () => pickDistrict(d));
+      box.appendChild(b);
+    }
+  }
+
+  async function pickDistrict(d) {
+    const note = el('district-note');
+    const box = el('district-results');
+    if (box) box.textContent = '';
+    if (note) note.textContent = 'Getting ' + d.n + "'s calendar…";
+    try {
+      // Changing district makes the old choice of schools meaningless.
+      if (d.o !== savedDistrictOrgId()) { schoolIds = []; saveSchools(); }
+      const ok = await useDistrict(d.o, (s) => { if (note) note.textContent = s + '…'; });
+      if (!ok) throw new Error('could not load');
+    } catch (e) {
+      if (note) note.textContent = "Couldn't read that district's calendar. Try again, or pick another.";
+      return;
+    }
+    showWelcomeStep('schools');
+  }
+
+  function districtName() {
+    return (PACK.district && PACK.district.name) || 'Your district';
+  }
+
+  function districtShort() {
+    const eng = new E.AnswerEngine(PACK, RULES);
+    return eng.districtShort;
+  }
+
+  /**
+   * The app's name, mark and small print all depend on whose schools it is
+   * answering for, so none of them is written into the page.
+   *
+   * The small print in particular has to be honest about two different
+   * things: for the district carried in full it is built from pages that
+   * are linked under every answer; for a district read live there are no
+   * pages, only the calendar and the closings.
+   */
+  function renderBranding() {
+    const short = districtShort();
+    const mark = el('home-mark');
+    if (mark) mark.textContent = (short && short !== 'the district') ? short.charAt(0).toUpperCase() : 'S';
+
+    const title = el('apptitle');
+    if (title) {
+      title.textContent = (short && short !== 'the district')
+        ? short + ' School Answers' : 'School Answers';
+    }
+
+    const head = el('askhead');
+    if (head) {
+      head.textContent = (short && short !== 'the district')
+        ? 'Ask about ' + short + ' schools.' : 'Ask about your schools.';
+    }
+
+    try { document.title = (title && title.textContent) || 'School Answers'; } catch (e) { /* ignore */ }
+
+    const dis = el('disclaimer');
+    if (!dis) return;
+    dis.textContent = '';
+    const site = siteHost();
+    const parts = [
+      hasPages()
+        ? "Unofficial. Built from the district's own public pages, which are linked under every answer."
+        : "Unofficial. Built from the calendar and announcements " + districtName() + ' publishes itself.',
+      ' For same-day closings, the district’s own notifications and '
+    ];
+    dis.appendChild(document.createTextNode(parts[0] + parts[1]));
+    if (site) {
+      const a = document.createElement('a');
+      a.href = 'https://' + site;
+      a.target = '_blank';
+      a.rel = 'noopener';
+      a.textContent = site;
+      dis.appendChild(a);
+      dis.appendChild(document.createTextNode(' are the official word.'));
+    } else {
+      dis.appendChild(document.createTextNode('its website are the official word.'));
+    }
+  }
+
+  /** The district's website without the scheme, for saying out loud. */
+  function siteHost() {
+    const u = (PACK.district && PACK.district.url) || '';
+    return u.replace(/^https?:\/\//, '').replace(/\/+$/, '');
+  }
+
+  /**
+   * Whether this district's pages have been read. Only the bundled district
+   * has them; for the others the app has the calendar and the closings but
+   * no policies, bell times or office numbers, and should say so plainly
+   * rather than letting a parent wonder why it keeps drawing a blank.
+   */
+  function hasPages() {
+    return !!(PACK.facts && PACK.facts.length);
+  }
+
   // ---------------------------------------------------------------- welcome
 
   /**
@@ -945,14 +1245,28 @@
    * "Skip for now" is there deliberately: nobody should be made to fill in a
    * form before they can look at anything.
    */
-  function showWelcome() {
+  function showWelcomeStep(which) {
+    const d = el('welcome-district'), s = el('welcome-schools');
+    if (!d || !s) return;
+    d.hidden = which !== 'district';
+    s.hidden = which !== 'schools';
+    if (which === 'schools') {
+      buildPicker(el('welcome-picker'), 'wel-', null);
+      syncPickers();
+    } else {
+      renderDistrictResults();
+      const box = el('district-search');
+      if (box) setTimeout(() => { try { box.focus(); } catch (e) { /* ignore */ } }, 50);
+    }
+  }
+
+  function showWelcome(step) {
     const w = el('welcome');
     if (!w) return;
-    buildPicker(el('welcome-picker'), 'wel-', null);
-    syncPickers();
     w.hidden = false;
     el('thread').hidden = true;
     el('composer').hidden = true;
+    showWelcomeStep(step || (DISTRICTS.length > 1 ? 'district' : 'schools'));
   }
 
   function closeWelcome() {
@@ -961,6 +1275,7 @@
     el('thread').hidden = false;
     el('composer').hidden = false;
     try { localStorage.setItem('welcomed', '1'); } catch (e) { /* ignore */ }
+    renderChips();
     applySchool();
     renderSettings();
     checkAlerts();
@@ -969,14 +1284,46 @@
   el('welcome-done').addEventListener('click', closeWelcome);
   el('welcome-skip').addEventListener('click', closeWelcome);
 
-  renderChips();
-  applySchool();
-  renderSettings();
-  checkAlerts();
+  const backBtn = el('welcome-back');
+  if (backBtn) backBtn.addEventListener('click', () => showWelcomeStep('district'));
 
-  if (!schoolIds.length && store.get('welcomed', '') !== '1') {
-    showWelcome();
+  const dsearch = el('district-search');
+  if (dsearch) {
+    let t = null;
+    dsearch.addEventListener('input', () => {
+      clearTimeout(t);
+      t = setTimeout(renderDistrictResults, 90);
+    });
   }
+
+  const changeBtn = el('change-district');
+  if (changeBtn) {
+    changeBtn.addEventListener('click', () => {
+      const sheet = el('sheet');
+      if (sheet && sheet.open) sheet.close();
+      showWelcome('district');
+    });
+  }
+
+  // Restoring a district chosen on an earlier visit. Everything below runs
+  // whether or not that works, so a district whose feed is briefly down
+  // leaves the app usable rather than blank.
+  (async function boot() {
+    const saved = savedDistrictOrgId();
+    if (saved !== bundledOrgId) {
+      try { await useDistrict(saved); } catch (e) { /* fall back to the bundled one */ }
+    }
+
+    renderChips();
+    renderBranding();
+    applySchool();
+    renderSettings();
+    checkAlerts();
+
+    if (!schoolIds.length && store.get('welcomed', '') !== '1') {
+      showWelcome();
+    }
+  })();
 
   if ('serviceWorker' in navigator && location.protocol.startsWith('http')) {
     navigator.serviceWorker.register('sw.js').catch(() => { /* offline is a bonus, not a requirement */ });
