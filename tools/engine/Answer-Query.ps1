@@ -92,6 +92,25 @@ function Test-ContainsPhrase {
     return [regex]::IsMatch($Haystack, $pat)
 }
 
+function Get-SquashedDoubles {
+    <# "dissmisal" and "dismissal" both become "dismisal". #>
+    param([string] $Text)
+    return [regex]::Replace($Text, '([a-z])\1+', '$1')
+}
+
+function Test-ContainsPhrasePlural {
+    <#
+      Like Test-ContainsPhrase, but lets the last word be plural. "How many
+      late starts this year" was finding no schedule kind at all: the word
+      list holds "late start" and the whole-word match stopped at the "s".
+      Listing every plural by hand is the treadmill; allowing one is not.
+    #>
+    param([string] $Haystack, [string] $Needle)
+    if (-not $Needle) { return $false }
+    $pat = '(?<![a-z0-9])' + [regex]::Escape($Needle).Replace('\ ', '\s+') + '(?:es|s)?(?![a-z0-9])'
+    return [regex]::IsMatch($Haystack, $pat)
+}
+
 # ================================================================ date slots
 
 function New-DateSlot {
@@ -308,7 +327,24 @@ function Resolve-ScheduleKindSlot {
     foreach ($k in @($sw.Keys)) {
         foreach ($w in (DA $sw $k)) {
             $w = [string]$w
-            if ((Test-ContainsPhrase $Norm $w) -and $w.Length -gt $bestLen) { $best = $k; $bestLen = $w.Length }
+            if ((Test-ContainsPhrasePlural $Norm $w) -and $w.Length -gt $bestLen) { $best = $k; $bestLen = $w.Length }
+        }
+    }
+    if ($best) { return $best }
+
+    # Last resort: squash repeated letters, so "dissmisal" and "dismissal"
+    # both become "dismisal". Doubled or dropped double letters are far and
+    # away the commonest typo in these particular words. Only on words of six
+    # letters or more, because on short words it destroys meaning: "off"
+    # would squash to "of", and a day off is not a day of.
+    $squashed = Get-SquashedDoubles $Norm
+    foreach ($k in @($sw.Keys)) {
+        foreach ($w in (DA $sw $k)) {
+            $w = [string]$w
+            if (($w -replace '[^a-z]', '').Length -lt 6) { continue }
+            if ((Test-ContainsPhrasePlural $squashed (Get-SquashedDoubles $w)) -and $w.Length -gt $bestLen) {
+                $best = $k; $bestLen = $w.Length
+            }
         }
     }
     return $best
@@ -844,6 +880,35 @@ function Test-AsksAboutSomeOtherDay {
     return $false
 }
 
+# Is the question "how many of them are there?" rather than "is it one
+# today?" - and does it span the year rather than a day?
+#
+# "How many early dismissal days are in this school year" used to score
+# highest on day_schedule (on the words "early" and "dismissal"), find no
+# date, quietly fall back to today and answer "Saturday, November 21, 2026 is
+# a Saturday - no school." Confidently wrong, and about the wrong question.
+# Counting and enumerating are never about a single day.
+$script:CountingRe   = '(?<![a-z0-9])(how many|how much|how often|number of|count of)(?![a-z0-9])'
+$script:SpanRe       = '(?<![a-z0-9])(this (school )?year|the (school )?year|whole year|rest of the|all year|left|remaining)(?![a-z0-9])'
+$script:EnumerateRe  = '(?<![a-z0-9])(list|every|all the|all of the)(?![a-z0-9])'
+
+# Resolvers that answer about one day. Any of these reached by a counting
+# question is a routing mistake.
+$script:OneDayResolvers = @('school_status', 'day_schedule', 'bell_times', 'fact_search')
+$script:MultiDaySubject = '(?<![a-z0-9])(days? off|holidays?|closings?|closures?|no school|half days?|early dismissals?|single sessions?|late starts?|delayed openings?|snow days?)(?![a-z0-9])'
+
+function Test-AsksForCount {
+    param([string] $Norm)
+    return [regex]::IsMatch($Norm, $script:CountingRe)
+}
+
+function Test-AsksForAll {
+    param([string] $Norm)
+    return ([regex]::IsMatch($Norm, $script:CountingRe) -or
+            [regex]::IsMatch($Norm, $script:EnumerateRe) -or
+            [regex]::IsMatch($Norm, $script:SpanRe))
+}
+
 function Invoke-Resolver-SchoolStatus {
     param($Pack, $Rules, $Ctx)
     $slot = $Ctx.Date
@@ -1279,13 +1344,26 @@ function Invoke-Resolver-ListOccurrences {
         '{0} - {1}' -f $d, $r.T
     }
 
-    $t = "{0} still to come ({1}):" -f $label, @($upcoming).Count
-    if (-not @($upcoming).Count) {
-        $t = "{0}: none left this school year." -f $label
+    if ($Ctx.Counting) {
+        # They asked for a number, so lead with the number - for the whole
+        # year, which is what "in this school year" means, not just what is
+        # left. The list that follows is the part they can still plan around.
+        $t = "{0}: {1} on this school year's calendar." -f $label, @($sorted).Count
+        if (@($upcoming).Count) {
+            $t += (" {0} still to come:" -f @($upcoming).Count) + "`n" + ($lines -join "`n")
+        } else {
+            $t += ' None left.'
+        }
+        if ($past.Count) { $t += "`n`n({0} already passed.)" -f $past.Count }
     } else {
-        $t += "`n" + ($lines -join "`n")
+        $t = "{0} still to come ({1}):" -f $label, @($upcoming).Count
+        if (-not @($upcoming).Count) {
+            $t = "{0}: none left this school year." -f $label
+        } else {
+            $t += "`n" + ($lines -join "`n")
+        }
+        if ($past.Count) { $t += "`n`n({0} already passed this school year.)" -f $past.Count }
     }
-    if ($past.Count) { $t += "`n`n({0} already passed this school year.)" -f $past.Count }
 
     return New-Answer -Text $t -Intent 'list_occurrences' -Kind 'list' -Confidence 0.92 `
                       -Sources @('https://www.edison.k12.nj.us/page/district-yearly-calendar/') `
@@ -1526,6 +1604,7 @@ function Invoke-Query {
         Date         = (Resolve-DateSlot         -Norm $norm -Today $Today.Date -Rules $Rules)
         ScheduleKind = (Resolve-ScheduleKindSlot -Norm $norm -Rules $Rules)
         Break        = (Resolve-BreakSlot        -Norm $norm -Rules $Rules)
+        Counting     = (Test-AsksForCount        -Norm $norm)
     }
 
     # ---- follow-ups
@@ -1586,6 +1665,26 @@ function Invoke-Query {
     if ($ctx.Break -and $norm -notmatch '(?<![a-z])next(?![a-z])') { $resolver = 'break_dates' }
     elseif ($norm -match '(?<![a-z])(next|upcoming)(?![a-z])' -and $ctx.ScheduleKind -and -not $ctx.Date) {
         $resolver = 'next_occurrence'
+    }
+
+    # Counting or enumerating is the list question, however it is worded.
+    # Without this, "how many early dismissal days are in this school year"
+    # landed on day_schedule, found no date and answered about today. The word
+    # list in the rules will always miss a phrasing; this does not, because it
+    # keys off the shape of the question, not its vocabulary.
+    if ($resolver -in $script:OneDayResolvers -and -not $ctx.Date) {
+        if ((Test-AsksForAll -Norm $norm) -and
+            ($ctx.ScheduleKind -or [regex]::IsMatch($norm, $script:MultiDaySubject))) {
+            $resolver = 'list_occurrences'
+        }
+        elseif (Test-AsksForCount -Norm $norm) {
+            # Counting something that is not on the calendar - "how many
+            # schools are in the district", "how many students go to edison
+            # high". Still not a question about today, and school_status was
+            # answering it "Saturday, November 21 is a Saturday, so there is
+            # no school."
+            $resolver = 'fact_search'
+        }
     }
 
     $ans = switch ($resolver) {

@@ -320,12 +320,51 @@
     return best;
   };
 
+  /**
+   * Like containsPhrase, but lets the last word be plural. "How many late
+   * starts this year" was finding no schedule kind at all, because the list
+   * holds "late start" and the whole-word match stopped at the "s". Listing
+   * every plural by hand is the treadmill; allowing one is not.
+   */
+  function containsPhrasePlural(hay, needle) {
+    if (!needle) return false;
+    const pat = '(?:^|[^a-z0-9])' + escapeRe(needle).replace(/\\ /g, '\\s+') +
+                '(?:es|s)?(?:[^a-z0-9]|$)';
+    return new RegExp(pat).test(hay);
+  }
+
+  /**
+   * Squash repeated letters: "dissmisal" and "dismissal" both become
+   * "dismisal". Doubled or dropped double letters are far and away the
+   * commonest typo in these particular words, and a parent typing
+   * "dissmisal" means exactly what a parent typing "dismissal" means.
+   *
+   * Only ever used as a last resort, and only on words of six letters or
+   * more, because on short words it destroys meaning: "off" would squash to
+   * "of", and a day off is not a day of.
+   */
+  function squashDoubles(s) {
+    return String(s).replace(/([a-z])\1+/g, '$1');
+  }
+
   function longestMapMatch(norm, map) {
     let best = null, bestLen = 0;
     for (const key of Object.keys(map || {})) {
       for (const w of (map[key] || [])) {
-        if (String(w).length > bestLen && containsPhrase(norm, String(w))) {
+        if (String(w).length > bestLen && containsPhrasePlural(norm, String(w))) {
           best = key; bestLen = String(w).length;
+        }
+      }
+    }
+    if (best) return best;
+
+    const squashed = squashDoubles(norm);
+    for (const key of Object.keys(map || {})) {
+      for (const w of (map[key] || [])) {
+        const t = String(w);
+        if (t.replace(/[^a-z]/g, '').length < 6) continue;
+        if (t.length > bestLen && containsPhrasePlural(squashed, squashDoubles(t))) {
+          best = key; bestLen = t.length;
         }
       }
     }
@@ -599,6 +638,34 @@
   AnswerEngine.prototype.asksAboutSomeOtherDay = function (norm) {
     return (this.rules.dayHints || []).some((h) => norm.indexOf(String(h)) >= 0);
   };
+
+  /**
+   * Is the question "how many of them are there?" rather than "is it one
+   * today?" — and does it span the year rather than a day?
+   *
+   * "How many early dismissal days are in this school year" used to score
+   * highest on day_schedule (on the words "early" and "dismissal"), find no
+   * date, quietly fall back to today and answer "Saturday, November 21, 2026
+   * is a Saturday - no school." Confidently wrong, and about the wrong
+   * question. Counting and enumerating are never about a single day.
+   */
+  const COUNTING_RE = /(?:^|[^a-z0-9])(how many|how much|how often|number of|count of)(?:[^a-z0-9]|$)/;
+  const SPAN_RE = /(?:^|[^a-z0-9])(this (school )?year|the (school )?year|whole year|rest of the|all year|left|remaining)(?:[^a-z0-9]|$)/;
+  const ENUMERATE_RE = /(?:^|[^a-z0-9])(list|every|all the|all of the)(?:[^a-z0-9]|$)/;
+
+  AnswerEngine.prototype.asksForCount = function (norm) {
+    return COUNTING_RE.test(norm);
+  };
+
+  AnswerEngine.prototype.asksForAll = function (norm) {
+    return COUNTING_RE.test(norm) || ENUMERATE_RE.test(norm) || SPAN_RE.test(norm);
+  };
+
+  // Resolvers that answer about one day. Any of these reached by a counting
+  // question is a routing mistake.
+  const ONE_DAY_RESOLVERS = ['school_status', 'day_schedule', 'bell_times', 'fact_search'];
+  const MULTI_DAY_SUBJECT =
+    /(?:^|[^a-z0-9])(days? off|holidays?|closings?|closures?|no school|half days?|early dismissals?|single sessions?|late starts?|delayed openings?|snow days?)(?:[^a-z0-9]|$)/;
 
   AnswerEngine.prototype.rSchoolStatus = function (ctx) {
     if (!ctx.date && this.asksAboutSomeOtherDay(ctx.norm)) {
@@ -909,18 +976,29 @@
     const upcoming = rows.filter((r) => (r.endDate || r.date) >= todayKey);
     const past = rows.length - upcoming.length;
 
+    const lines = upcoming.map((r) => {
+      const s = fromISO(r.date), e = fromISO(r.endDate) || s;
+      const d = isoOf(s) === isoOf(e) ? dateShort(s) : `${dateShort(s)}-${dateShort(e)}`;
+      return `${d} - ${r.title}`;
+    });
+
     let t;
-    if (!upcoming.length) {
+    if (ctx.counting) {
+      // They asked for a number, so lead with the number — for the whole
+      // year, which is what "in this school year" means, not just what is
+      // left. The list that follows is the part they can still plan around.
+      t = `${label}: ${rows.length} on this school year's calendar.`;
+      t += upcoming.length
+        ? ` ${upcoming.length} still to come:\n` + lines.join('\n')
+        : ' None left.';
+      if (past) t += `\n\n(${past} already passed.)`;
+    } else if (!upcoming.length) {
       t = `${label}: none left this school year.`;
+      if (past) t += `\n\n(${past} already passed this school year.)`;
     } else {
-      const lines = upcoming.map((r) => {
-        const s = fromISO(r.date), e = fromISO(r.endDate) || s;
-        const d = isoOf(s) === isoOf(e) ? dateShort(s) : `${dateShort(s)}-${dateShort(e)}`;
-        return `${d} - ${r.title}`;
-      });
       t = `${label} still to come (${upcoming.length}):\n` + lines.join('\n');
+      if (past) t += `\n\n(${past} already passed this school year.)`;
     }
-    if (past) t += `\n\n(${past} already passed this school year.)`;
 
     return mk(t, 'list_occurrences', 'list', [CAL_URL], 0.92, sid || '');
   };
@@ -1120,7 +1198,8 @@
       level: this.resolveLevel(norm),
       date: this.resolveDate(norm, t),
       scheduleKind: this.resolveScheduleKind(norm),
-      break_: this.resolveBreak(norm)
+      break_: this.resolveBreak(norm),
+      counting: this.asksForCount(norm)
     };
 
     // "Is there school tomorrow?" then "what time?" is one conversation, not
@@ -1176,6 +1255,23 @@
     if (ctx.break_ && !containsPhrase(norm, 'next')) resolver = 'break_dates';
     else if ((containsPhrase(norm, 'next') || containsPhrase(norm, 'upcoming')) && ctx.scheduleKind && !ctx.date) {
       resolver = 'next_occurrence';
+    }
+
+    // Counting or enumerating is the list question, however it is worded.
+    // Without this, "how many early dismissal days are in this school year"
+    // landed on day_schedule, found no date and answered about today. The
+    // word list in the rules will always miss a phrasing; this does not,
+    // because it keys off the shape of the question, not its vocabulary.
+    if (ONE_DAY_RESOLVERS.indexOf(resolver) >= 0 && !ctx.date) {
+      if (this.asksForAll(norm) && (ctx.scheduleKind || MULTI_DAY_SUBJECT.test(norm))) {
+        resolver = 'list_occurrences';
+      } else if (this.asksForCount(norm)) {
+        // Counting something that is not on the calendar - "how many schools
+        // are in the district", "how many students go to edison high". Still
+        // not a question about today, and school_status was answering it
+        // "Saturday, November 21 is a Saturday, so there is no school."
+        resolver = 'fact_search';
+      }
     }
 
     const fn = {

@@ -10,7 +10,7 @@
 // this file if the file's own contents changed. With a fixed name, someone who
 // opened the app once would keep the files they saved that day for ever, and
 // every later update - including the monthly refresh - would reach nobody.
-const CACHE = 'edison-20261121200221';
+const CACHE = 'edison-20261121201349';
 const ASSETS = ['./', 'index.html', 'engine.js', 'app.js',
                 'data/pack.js', 'data/rules.js', 'manifest.webmanifest', 'icon.svg'];
 

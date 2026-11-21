@@ -109,3 +109,16 @@
 {"q":"SCHOOL OPEN TOMORROW???","today":"2026-11-20","resolver":"school_status","contains":["November 21, 2026"]}
 {"q":"is  school   open    tomorrow","today":"2026-11-20","resolver":"school_status","contains":["November 21, 2026"]}
 {"q":"when's spring break?","today":"2026-11-20","resolver":"break_dates","contains":["March 22-26, 2027"]}
+{"_":"--- counting questions. 'How many early dismissal days are in this school year' answered 'Saturday, November 21, 2026 is a Saturday - no school.' It scored highest on day_schedule (the words 'early' and 'dismissal'), found no date, and quietly fell back to today. Counting is never a question about one day."}
+{"q":"how many early dismissal days are in this school year","today":"2026-11-20","resolver":"list_occurrences","contains":["on this school year's calendar"],"notContains":["is a Friday","no school."]}
+{"q":"how many early dissmisal days are in this school year","today":"2026-11-20","resolver":"list_occurrences","contains":["Early dismissal and single session days"],"notContains":["is a Friday"]}
+{"q":"how many half days this year","today":"2026-11-20","resolver":"list_occurrences","contains":["Early dismissal"],"notContains":["is a Friday"]}
+{"q":"how many late starts this year","today":"2026-11-20","resolver":"list_occurrences","notContains":["is a Friday"]}
+{"q":"how many days off do we have this year","today":"2026-11-20","resolver":"list_occurrences","contains":["on this school year's calendar"]}
+{"_":"...but counting something that is not on the calendar must not become a calendar list, and must not become today either."}
+{"q":"how many schools are in the district","today":"2026-11-20","resolver":"fact_search","notContains":["is a Friday","Early Dismissal"]}
+{"q":"how many students go to edison high school","today":"2026-11-20","resolver":"fact_search","notContains":["is a Friday","Early Dismissal"]}
+{"q":"how many days until winter break","today":"2026-11-20","resolver":"break_dates","contains":["December 24"]}
+{"_":"Plural schedule words. 'Late starts' found no schedule kind at all, because the word list holds 'late start' and whole-word matching stopped at the s."}
+{"q":"list all the early dismissals","today":"2026-11-20","resolver":"list_occurrences","contains":["Nov 25"]}
+{"q":"show me every delayed opening","today":"2026-11-20","resolver":"list_occurrences"}

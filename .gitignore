@@ -1,0 +1,4 @@
+# Downloaded pages from the crawl - rebuilt every run, never served.
+tools/**/.cache/
+# The information file, already published as data/pack.js.
+tools/dist/
