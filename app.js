@@ -89,7 +89,7 @@
    * follow are a small table, not prose. Splitting them makes the thing a
    * parent actually wants ("open? closed? what time?") readable at a glance.
    */
-  function renderAnswer(a) {
+  function renderAnswer(a, question) {
     const node = document.createElement('div');
     node.className = 'a';
 
@@ -139,6 +139,21 @@
 
     const meta = document.createElement('div');
     meta.className = 'meta';
+
+    // Offer Claude where the built-in answer is thin. Shown only once the
+    // capability has actually resolved, so it never appears and then fails.
+    if (a.confidence < 0.6 && question) {
+      getSampler().then((s) => {
+        if (!s) return;
+        const ask = document.createElement('button');
+        ask.type = 'button';
+        ask.className = 'askclaude';
+        ask.textContent = a.confidence < 0.3 ? 'Ask School' : 'Ask School for more';
+        ask.addEventListener('click', () => askClaude(question, ask));
+        meta.insertBefore(ask, meta.firstChild);
+      });
+    }
+
     if (a.confidence < 0.5) {
       const w = document.createElement('span');
       w.className = 'lowconf';
@@ -231,7 +246,7 @@
           lbl.textContent = names;
           wrap.appendChild(lbl);
         }
-        wrap.appendChild(renderAnswer(u.a));
+        wrap.appendChild(renderAnswer(u.a, q));
       }
     } catch (err) {
       wrap.appendChild(renderAnswer({
@@ -244,6 +259,121 @@
     el('ask').value = '';
     autosize();
     requestAnimationFrame(() => { thread.scrollTop = thread.scrollHeight; });
+  }
+
+  // ---------------------------------------------------------------- ask Claude
+
+  /*
+   * The built-in answers are exact and instant and work with no signal, so
+   * they go first. But they only cover what someone thought to write a rule
+   * for. When the app is unsure — or plainly could not find anything — it can
+   * hand the question to Claude, along with the district pages that look
+   * closest, and get a real answer back.
+   *
+   * It runs on the reader's own Claude account, so it asks their permission
+   * the first time and only ever on a deliberate tap. If they say no, or they
+   * are not signed in, the button simply is not there and everything else
+   * still works.
+   */
+  // The promise is memoised, not its result: resolving can take ten seconds,
+  // and several answers may ask at once. Caching the result would hand the
+  // later callers a null that only meant "not resolved yet".
+  let samplerPromise = null;
+
+  function getSampler() {
+    if (!samplerPromise) {
+      samplerPromise = (window.claude && typeof window.claude.use === 'function')
+        ? Promise.resolve(window.claude.use('sample')).catch(() => null)
+        : Promise.resolve(null);
+    }
+    return samplerPromise;
+  }
+
+  /** The district pages most likely to hold the answer, as plain text. */
+  function contextFor(question, limit) {
+    const eng = engine();
+    const terms = E.normalize(question).split(' ').filter((w) => w.length > 2);
+    const school = schoolIds.length ? schoolById(schoolIds[0]) : null;
+    const hits = eng.factMatches(terms, school, [], 5);
+    let out = '';
+    for (const h of hits) {
+      const piece = `\n### ${h.fact.title}\n(${h.fact.url})\n${h.fact.text}\n`;
+      if (out.length + piece.length > limit) break;
+      out += piece;
+    }
+    return out;
+  }
+
+  function buildPrompt(question) {
+    const eng = engine();
+    const today = eng.today();
+    const mine = schoolIds.map(schoolById).filter(Boolean).map((s) => s.name);
+
+    let p = 'You are helping a parent in the Edison Township Public Schools district in New Jersey.\n';
+    p += 'Today is ' + E.dateLong(today) + '.\n';
+    if (mine.length) p += "Their children attend: " + mine.join(', ') + '.\n';
+    p += '\nAnswer using ONLY the district information below. If it does not contain the answer, ';
+    p += 'say plainly that you could not find it and point them to the district website or their ';
+    p += "school's office. Never guess at dates, times or phone numbers.\n";
+    p += 'Reply in two to four short sentences, in plain language, for a parent in a hurry. ';
+    p += 'No headings, no bullet points.\n';
+    p += '\n--- DISTRICT INFORMATION ---\n';
+    p += contextFor(question, 14000);
+    p += '\n--- END OF DISTRICT INFORMATION ---\n';
+    p += '\nThe parent asks: ' + question;
+    return p;
+  }
+
+  /** Adds a card that fills in as Claude writes. */
+  async function askClaude(question, button) {
+    const s = await getSampler();
+    if (!s) { button.remove(); return; }
+
+    button.disabled = true;
+    button.textContent = 'Asking…';
+
+    const node = document.createElement('div');
+    node.className = 'a claude';
+    // The button says "Ask School" because that is what a parent is asking
+    // about. The answer says who actually wrote it: it is Claude reading the
+    // district's pages, not a reply from the district, and a parent deciding
+    // whether to keep their child home should be able to tell the difference.
+    const badge = document.createElement('span');
+    badge.className = 'claude-badge';
+    badge.textContent = 'Written by Claude from district pages';
+    const body = document.createElement('div');
+    body.className = 'body';
+    body.textContent = 'Thinking…';
+    node.appendChild(badge);
+    node.appendChild(body);
+    wrap.appendChild(node);
+    thread.scrollTop = thread.scrollHeight;
+
+    try {
+      await s(buildPrompt(question), {
+        modelTier: 'quick',
+        onText: ({ text }) => {
+          body.textContent = text;
+          thread.scrollTop = thread.scrollHeight;
+        }
+      });
+      button.remove();
+    } catch (err) {
+      const code = (err && err.code) || 'upstream_error';
+      if (code === 'not_granted' || code === 'sampling_disabled') {
+        node.remove();
+        button.remove();
+      } else if (code === 'rate_limited') {
+        body.textContent = 'Too busy right now. Try again in a minute.';
+        button.disabled = false;
+        button.textContent = 'Ask School';
+      } else {
+        body.textContent = (err && err.text) ||
+          'That did not work. The answer above is still from the district\'s own pages.';
+        button.disabled = false;
+        button.textContent = 'Try again';
+      }
+    }
   }
 
   // ---------------------------------------------------------------- glance
