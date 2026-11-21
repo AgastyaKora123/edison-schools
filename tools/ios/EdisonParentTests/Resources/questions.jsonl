@@ -1,0 +1,111 @@
+{"_":"CONTRACT FILE. The PowerShell engine (engine/Answer-Query.ps1) and the Swift engine (ios/EdisonParent/AnswerEngine.swift) must both pass every case. 'today' is pinned so results never drift; 2026-11-20 is a Friday in the 2026-27 school year."}
+{"_":"--- school open / closed ---"}
+{"q":"is school open tomorrow","today":"2026-11-20","resolver":"school_status","contains":["Saturday","no school"]}
+{"q":"is there school today","today":"2026-11-20","resolver":"school_status","contains":["Friday, November 20, 2026","open"]}
+{"q":"is there school on november 25","today":"2026-11-20","resolver":"school_status","contains":["November 25","early dismissal"]}
+{"q":"is school closed on thanksgiving","today":"2026-11-20","contains":["November 26","closed"]}
+{"q":"do we have school on november 26","today":"2026-11-20","resolver":"school_status","contains":["No","November 26, 2026","closed"]}
+{"q":"is school open on january 18","today":"2026-11-20","resolver":"school_status","contains":["No","January 18, 2027","closed","Martin Luther King"]}
+{"q":"is there school on 12/25","today":"2026-11-20","resolver":"school_status","contains":["closed"]}
+{"q":"is school open monday","today":"2026-11-20","resolver":"school_status","contains":["November 23, 2026","open"]}
+{"q":"any school next monday","today":"2026-11-20","resolver":"school_status","contains":["November 23, 2026"]}
+{"q":"is school closed on february 15","today":"2026-11-20","contains":["February 15, 2027","closed"]}
+{"q":"is there school on march 10","today":"2026-11-20","contains":["March 10, 2027","closed"]}
+{"q":"is school open on may 31","today":"2026-11-20","contains":["May 31, 2027"]}
+{"_":"--- early dismissal / delayed opening / half day ---"}
+{"q":"is tomorrow an early dismissal","today":"2026-11-24","resolver":"day_schedule","contains":["November 25, 2026","early dismissal"]}
+{"q":"is it a half day today","today":"2026-11-25","resolver":"day_schedule","contains":["November 25, 2026","early dismissal"]}
+{"q":"is today a half day","today":"2026-11-20","resolver":"day_schedule","contains":["No","November 20, 2026"]}
+{"q":"is december 3 a single session day","today":"2026-11-20","resolver":"day_schedule","contains":["Yes","December 3, 2026","Single Session Day"]}
+{"q":"is december 4 a single session day","today":"2026-11-20","resolver":"day_schedule","contains":["No","December 4, 2026"]}
+{"q":"is there an early dismissal next week","today":"2026-11-20","resolver":"day_schedule","contains":["Nov 25","Early Dismissal"]}
+{"q":"is wednesday an early dismissal","today":"2026-11-20","resolver":"day_schedule","contains":["November 25, 2026","early dismissal"]}
+{"q":"is it a delayed opening tomorrow","today":"2026-11-22","resolver":"day_schedule","contains":["November 23, 2026","not a delayed opening"]}
+{"_":"--- next occurrence ---"}
+{"q":"when is the next early dismissal","today":"2026-11-20","resolver":"next_occurrence","contains":["November 25, 2026","Early Dismissal"]}
+{"q":"when is the next day off","today":"2026-11-20","resolver":"next_occurrence","contains":["November 26"]}
+{"q":"when is the next half day","today":"2026-11-30","resolver":"next_occurrence","contains":["December 3, 2026"]}
+{"q":"when is the next school closing","today":"2027-01-05","resolver":"next_occurrence","contains":["January 18, 2027"]}
+{"_":"--- breaks ---"}
+{"q":"when is spring break","today":"2026-11-20","resolver":"break_dates","contains":["March 22-26, 2027","Spring Recess","return"]}
+{"q":"when is winter break","today":"2026-11-20","resolver":"break_dates","contains":["December 24, 2026","January 1, 2027"]}
+{"q":"when is thanksgiving recess","today":"2026-11-20","resolver":"break_dates","contains":["November 26-27, 2026"]}
+{"q":"when is christmas break","today":"2026-11-20","resolver":"break_dates","contains":["December 24, 2026"]}
+{"q":"when is the last day of school","today":"2026-11-20","contains":["June 16, 2027"]}
+{"q":"how long is spring break","today":"2026-11-20","resolver":"break_dates","contains":["March 22-26, 2027","5 days"]}
+{"q":"when do kids go back after winter break","today":"2026-11-20","resolver":"break_dates","contains":["January 1, 2027","return"]}
+{"_":"--- hours / bell times ---"}
+{"q":"what time does school start","today":"2026-11-20","resolver":"bell_times","contains":["8:55 AM","8:25 AM","7:40 AM"]}
+{"q":"what time does middle school start","today":"2026-11-20","resolver":"bell_times","contains":["Middle schools","8:25 AM","3:00 PM"],"notContains":["Elementary"]}
+{"q":"what time does elementary school end","today":"2026-11-20","resolver":"bell_times","contains":["Elementary","3:30 PM"]}
+{"q":"what time does high school start","today":"2026-11-20","resolver":"bell_times","contains":["High schools","7:40 AM","2:30 PM"]}
+{"q":"what time does school end at John P Stevens","today":"2026-11-20","resolver":"bell_times","contains":["7:40 AM","2:30 PM"]}
+{"q":"what are the school hours for Herbert Hoover","today":"2026-11-20","resolver":"bell_times","contains":["8:25 AM","3:00 PM"]}
+{"q":"what time is pickup at Lincoln","today":"2026-11-20","resolver":"bell_times","contains":["3:30 PM"]}
+{"q":"what time does school start on a delayed opening","today":"2026-11-20","contains":["10:55 AM","10:25 AM","9:40 AM"]}
+{"q":"what time is dismissal on november 25","today":"2026-11-20","resolver":"bell_times","contains":["November 25, 2026","1:30 PM","1:00 PM","12:00 PM"]}
+{"q":"what time does EELC start","today":"2026-11-20","resolver":"bell_times","contains":["9:30 AM","3:30 PM"]}
+{"_":"--- absence reporting ---"}
+{"q":"how do I report my kid absent at Herbert Hoover","today":"2026-11-20","resolver":"absence_report","contains":["Herbert Hoover","732-452-2940"]}
+{"q":"my daughter is sick who do I call at John P Stevens","today":"2026-11-20","resolver":"absence_report","contains":["John P. Stevens"]}
+{"q":"how do I report an absence","today":"2026-11-20","resolver":"absence_report","contains":["school"]}
+{"q":"where do I report my child absent at Lincoln","today":"2026-11-20","resolver":"absence_report","contains":["Lincoln"]}
+{"q":"my son will be out sick tomorrow at Menlo Park","today":"2026-11-20","resolver":"absence_report","contains":["Menlo Park"]}
+{"_":"Lincoln publishes no attendance page. The answer must fall back to Lincoln's OWN office number, never to another school's page - this regressed once and handed a Lincoln parent JMI's attendance email."}
+{"q":"how do I report my child absent at Lincoln","today":"2026-11-20","resolver":"absence_report","contains":["Lincoln","732-650-5270"],"notContains":["jmi.attendance","Herbert Hoover","732-452-2960"]}
+{"q":"who do I call if my kid is sick at Woodbrook","today":"2026-11-20","resolver":"absence_report","contains":["Woodbrook"],"notContains":["jmi.attendance","Lincoln","Herbert Hoover"]}
+{"_":"--- calendar listing ---"}
+{"q":"what is on the calendar next week","today":"2026-11-20","resolver":"calendar_list","contains":["Nov 25","Nov 26"]}
+{"q":"what is happening this week","today":"2026-11-23","resolver":"calendar_list","contains":["Nov 25"]}
+{"_":"--- contact info ---"}
+{"q":"what is Lincoln phone number","today":"2026-11-20","resolver":"contact_info","contains":["Lincoln Elementary School","732-650-5270","53 Brookville Road"]}
+{"q":"what is the phone number for John P Stevens","today":"2026-11-20","resolver":"contact_info","contains":["732-452-2800","855 Grove Avenue"]}
+{"q":"what is the address of Woodbrook","today":"2026-11-20","resolver":"contact_info","contains":["15 Robin Road","Edison, NJ 08820"]}
+{"q":"how do I contact Menlo Park","today":"2026-11-20","resolver":"contact_info","contains":["732-452-2910"]}
+{"_":"--- fact retrieval ---"}
+{"q":"how do I sign up for ParentSquare","today":"2026-11-20","contains":["ParentSquare"]}
+{"q":"what is the district phone number","today":"2026-11-20","contains":["732"]}
+{"q":"who do I contact about bullying","today":"2026-11-20","contains":["ying"]}
+{"q":"how does transportation work","today":"2026-11-20","contains":["ransportation"]}
+{"q":"how do I enroll my child","today":"2026-11-20","contains":["nroll"]}
+{"_":"--- broader coverage: every page the district publishes is now read, so these should find real pages rather than fall back ---"}
+{"q":"what is the dress code","today":"2026-11-20","notContains":["couldn't find"]}
+{"q":"tell me about the gifted and talented program","today":"2026-11-20","notContains":["couldn't find"]}
+{"q":"how does the dual language academy work","today":"2026-11-20","notContains":["couldn't find"]}
+{"q":"what athletics are offered","today":"2026-11-20","notContains":["couldn't find"]}
+{"q":"what is on the digital backpack","today":"2026-11-20","notContains":["couldn't find"]}
+{"q":"what is CommunityPass","today":"2026-11-20","notContains":["couldn't find"]}
+{"q":"tell me about summer school","today":"2026-11-20","notContains":["couldn't find"]}
+{"_":"Each school's administration page names its principal, and those are now swept."}
+{"q":"who is the principal at Herbert Hoover","today":"2026-11-20","notContains":["couldn't find"]}
+{"q":"who is the principal at John P Stevens","today":"2026-11-20","notContains":["couldn't find"]}
+{"_":"Staff pages are collected too, but a parent question must never be answered from one unless they asked about it."}
+{"q":"how do I report my child absent","today":"2026-11-20","resolver":"absence_report","notContains":["payroll","tuition reimbursement","salary"]}
+{"q":"what time does school start","today":"2026-11-20","resolver":"bell_times","notContains":["payroll","certification"]}
+{"q":"what is the lunch menu","today":"2026-11-20","notContains":["payroll","salary guide"]}
+{"_":"...but asking about a staff topic directly should still find it."}
+{"q":"tuition reimbursement","today":"2026-11-20","notContains":["couldn't find"]}
+{"_":"--- asking for a LIST, not about today. 'List early dismissal days' used to answer 'no, today is not an early dismissal' ---"}
+{"q":"list early dismissal days","today":"2026-11-20","resolver":"list_occurrences","contains":["Nov 25","Dec 3"],"notContains":["is not an early dismissal"]}
+{"q":"what are all the days off this year","today":"2026-11-20","resolver":"list_occurrences","contains":["Nov 26","Jan 18","Mar 22"]}
+{"q":"show me every closing","today":"2026-11-20","resolver":"list_occurrences","contains":["Memorial Day"]}
+{"q":"list all the half days","today":"2026-11-20","resolver":"list_occurrences","contains":["Nov 25"]}
+{"q":"how many days off are left","today":"2026-11-20","resolver":"list_occurrences","contains":["still to come"]}
+{"_":"A single-day question must still answer about that day, not turn into a list."}
+{"q":"is today an early dismissal","today":"2026-11-20","resolver":"day_schedule","contains":["No","November 20"],"notContains":["still to come"]}
+{"_":"--- named days. 'is there school on christmas eve' once answered 'yes, open on November 23': the words were not understood, the date silently fell back to today, and a parent was told school was open on a day the district is closed. ---"}
+{"q":"is there school on christmas eve","today":"2026-11-23","resolver":"school_status","contains":["December 24, 2026","closed"],"notContains":["November 23"]}
+{"q":"is there school on christmas","today":"2026-11-23","contains":["December 25, 2026","closed"]}
+{"q":"is there school on halloween","today":"2026-11-23","contains":["October 31"]}
+{"_":"A day we cannot work out must say so, never quietly answer about today."}
+{"q":"is there school on some random day","today":"2026-11-23","resolver":"school_status","contains":["not sure which day"],"notContains":["open on Monday"]}
+{"q":"is there school on the day after the thing","today":"2026-11-23","contains":["not sure which day"]}
+{"_":"Asking what the rules are is not asking what today is."}
+{"q":"what is the snow day policy","today":"2026-11-23","notContains":["is open on Monday, November 23"]}
+{"q":"what is the attendance policy","today":"2026-11-23","notContains":["is open on Monday, November 23"]}
+{"_":"--- robustness: these must answer, not crash ---"}
+{"q":"","today":"2026-11-20","contains":["Ask me"]}
+{"q":"asdfghjkl qwerty","today":"2026-11-20","contains":[""]}
+{"q":"SCHOOL OPEN TOMORROW???","today":"2026-11-20","resolver":"school_status","contains":["November 21, 2026"]}
+{"q":"is  school   open    tomorrow","today":"2026-11-20","resolver":"school_status","contains":["November 21, 2026"]}
+{"q":"when's spring break?","today":"2026-11-20","resolver":"break_dates","contains":["March 22-26, 2027"]}

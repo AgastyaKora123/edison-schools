@@ -1,0 +1,92 @@
+# Builds the iPhone app and runs its checks, on a Mac.
+#
+# This project was written on a Windows machine, so until now the iPhone app
+# had never once been compiled - the Swift was written against a contract and
+# checked only by the PowerShell version of the same engine agreeing with it.
+# Code nobody has compiled is not code that works; it is a guess.
+#
+# GitHub lends public projects a real Mac for free, which is the whole reason
+# this file can exist. It compiles the app and runs its tests on an iPhone
+# simulator, every time anything in the iPhone app changes.
+#
+# It does NOT sign anything or send anything to Apple. Signing needs a paid
+# Apple developer account, which is the owner's to set up, and nothing here
+# should be able to publish on its own.
+
+name: Build the iPhone app
+
+on:
+  workflow_dispatch:
+
+  push:
+    paths:
+      - "tools/ios/**"
+      - ".github/workflows/ios-build.yml"
+      - ".build-ios-now"
+
+permissions:
+  contents: read
+
+concurrency:
+  group: ios-build
+  cancel-in-progress: true
+
+jobs:
+  build:
+    runs-on: macos-latest
+    timeout-minutes: 45
+
+    steps:
+      - name: Get the project
+        uses: actions/checkout@v4
+
+      - name: Which Xcode and which simulators
+        run: |
+          xcodebuild -version
+          echo "--- available iPhone simulators ---"
+          xcrun simctl list devices available | grep -i iphone || true
+
+      - name: Build it
+        working-directory: tools/ios
+        run: |
+          set -o pipefail
+          # No signing: this only has to compile and run in a simulator.
+          # A simulator build needs no certificate and no Apple account.
+          xcodebuild \
+            -project EdisonParent.xcodeproj \
+            -scheme EdisonParent \
+            -configuration Debug \
+            -destination 'generic/platform=iOS Simulator' \
+            -derivedDataPath build \
+            CODE_SIGNING_ALLOWED=NO \
+            build 2>&1 | tee build.log
+
+      - name: Run its checks
+        working-directory: tools/ios
+        run: |
+          set -o pipefail
+          # Pick whatever iPhone this runner actually has rather than naming
+          # a model, which goes stale every time Apple ships a new one.
+          DEVICE=$(xcrun simctl list devices available --json \
+            | python3 -c "import json,sys; d=json.load(sys.stdin)['devices']; \
+                print(next(x['udid'] for k in d for x in d[k] if 'iPhone' in x['name']))")
+          echo "Testing on simulator $DEVICE"
+          xcodebuild \
+            -project EdisonParent.xcodeproj \
+            -scheme EdisonParent \
+            -configuration Debug \
+            -destination "id=$DEVICE" \
+            -derivedDataPath build \
+            CODE_SIGNING_ALLOWED=NO \
+            test 2>&1 | tee test.log
+
+      - name: Keep the logs either way
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: build-and-test-logs
+          path: |
+            tools/ios/build.log
+            tools/ios/test.log
+          if-no-files-found: ignore
+          retention-days: 14
