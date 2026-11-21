@@ -15,7 +15,17 @@ on:
     # 06:20 UTC on the 1st of each month — about 1:20am in New Jersey, when
     # the district's servers are quiet.
     - cron: "20 6 1 * *"
-  workflow_dispatch:        # also lets you run it by hand from the Actions tab
+
+  workflow_dispatch:        # the Run workflow button on the Actions tab
+
+  # A refresh can also be started by changing this one file. Starting a job
+  # through GitHub's own button needs an access key for the account, which
+  # Claude does not have and should not be given; pushing a file is something
+  # it can already do. Nothing else in the project touches this file, so an
+  # ordinary publish never sets a refresh going by accident.
+  push:
+    paths:
+      - ".refresh-now"
 
 permissions:
   contents: write           # so it can save the refreshed information back
