@@ -186,6 +186,10 @@
     }
   }
 
+  // Set once the parent asks something, so a background update never reloads
+  // the page out from under an answer they are reading.
+  let asked = false;
+
   /**
    * Every typed question goes to Schoolo when Schoolo is available.
    *
@@ -201,6 +205,7 @@
   async function ask(text) {
     const q = String(text || '').trim();
     if (!q) return;
+    asked = true;
 
     showQuestion(q);
 
@@ -975,5 +980,24 @@
 
   if ('serviceWorker' in navigator && location.protocol.startsWith('http')) {
     navigator.serviceWorker.register('sw.js').catch(() => { /* offline is a bonus, not a requirement */ });
+
+    // An update takes effect on the NEXT open, because this page already
+    // loaded the old files before the new ones finished saving. For an app
+    // whose job is to be right at 6:45am that is one open too many: a fix
+    // published tonight should not still be wrong tomorrow morning.
+    //
+    // So when the new version takes over, reload - but only while nothing
+    // has been asked yet. Yanking the page out from under someone reading
+    // an answer would be worse than showing them yesterday's build.
+    // Only on an update, never on a first visit: on a first visit there is
+    // no controller yet, the page already has the newest files, and
+    // reloading would just be a flicker for nothing.
+    const hadController = !!navigator.serviceWorker.controller;
+    let reloading = false;
+    navigator.serviceWorker.addEventListener('controllerchange', () => {
+      if (reloading || asked || !hadController) return;
+      reloading = true;
+      location.reload();
+    });
   }
 })();
