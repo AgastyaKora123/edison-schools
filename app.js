@@ -1180,6 +1180,28 @@
    * pages, only the calendar and the closings.
    */
   function renderBranding() {
+    // While the district question is on screen, nothing has been chosen, so
+    // the app must not claim a district. Someone in Ohio opening this for
+    // the first time was shown "Edison School Answers - Edison Township
+    // Public Schools" directly above the words "Which district?", which
+    // reads as though the question had already been answered, wrongly.
+    //
+    // This lives here rather than at the point the screen is drawn, because
+    // the background check for closings re-renders when it finishes and was
+    // quietly putting the wrong name back a second later.
+    const choosing = (function () {
+      const w = el('welcome'), d = el('welcome-district');
+      return !!(w && d && !w.hidden && !d.hidden);
+    })();
+    if (choosing) {
+      const t = el('apptitle');   if (t) t.textContent = 'School Answers';
+      const m = el('home-mark');  if (m) m.textContent = 'S';
+      const s = el('scopeline');  if (s) s.textContent = 'Choose your district';
+      const dis = el('disclaimer'); if (dis) dis.textContent = '';
+      try { document.title = 'School Answers'; } catch (e) { /* ignore */ }
+      return;
+    }
+
     const short = districtShort();
     const mark = el('home-mark');
     if (mark) mark.textContent = (short && short !== 'the district') ? short.charAt(0).toUpperCase() : 'S';
@@ -1254,6 +1276,7 @@
       buildPicker(el('welcome-picker'), 'wel-', null);
       syncPickers();
     } else {
+      renderBranding();
       renderDistrictResults();
       const box = el('district-search');
       if (box) setTimeout(() => { try { box.focus(); } catch (e) { /* ignore */ } }, 50);
@@ -1322,7 +1345,20 @@
 
     if (!schoolIds.length && store.get('welcomed', '') !== '1') {
       showWelcome();
+      return;
     }
+
+    // Holding the app's icon on a phone offers "Is there school tomorrow?"
+    // and "Next day off" - the two things worth a shortcut, because they are
+    // what you want at the moment you are deciding whether to set an alarm.
+    // Each opens the app with the question already asked.
+    try {
+      const q = new URLSearchParams(location.search).get('ask');
+      if (q && q.trim()) {
+        history.replaceState(null, '', location.pathname);   // don't re-ask on reload
+        ask(q.trim());
+      }
+    } catch (e) { /* a shortcut that does not fire is not worth an error */ }
   })();
 
   if ('serviceWorker' in navigator && location.protocol.startsWith('http')) {

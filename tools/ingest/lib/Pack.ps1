@@ -264,6 +264,18 @@ function Write-PackJson {
     )
     $json = $Object | ConvertTo-Json -Depth $Depth
     # PS 5.1 escapes non-ASCII as \uXXXX which is valid JSON - leave it.
+
+    # An empty PowerShell array comes out as null, not [], and that cost us
+    # the whole iPhone app: Swift expects a list of tags, found null, and
+    # refused to load the information file at all. Every one of its checks
+    # failed on the same line. Nothing caught it for months because the
+    # PowerShell and browser engines both shrug at a null where a list
+    # should be, and because nobody had ever compiled the Swift.
+    #
+    # Done on the text rather than on the objects, so it cannot be
+    # sidestepped by some new field somewhere nobody thought to look.
+    $json = [regex]::Replace($json, '("(?:tags|aliases|schoolIds|phones|emails|sectionIds|sectionNames|alerts|screenshots)"\s*:\s*)null', '$1[]')
+
     $dir = Split-Path -Parent $Path
     if ($dir -and -not (Test-Path $dir)) { New-Item -ItemType Directory -Path $dir -Force | Out-Null }
     [IO.File]::WriteAllText($Path, $json, (New-Object System.Text.UTF8Encoding $false))

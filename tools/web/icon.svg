@@ -1,5 +1,34 @@
-<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 512 512" role="img" aria-label="Edison School Answers">
-  <rect width="512" height="512" rx="110" fill="#1b3a57"/>
-  <text x="256" y="258" fill="#ffffff" font-family="Georgia, 'Times New Roman', serif"
-        font-size="250" font-weight="600" text-anchor="middle" dominant-baseline="central">E</text>
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 512 512" role="img" aria-label="School Answers">
+  <!-- A calendar with one day marked, because every question this app
+       answers is really "what is happening on that day". The old icon was a
+       serif E for Edison, which stopped being true the moment the app
+       started answering for any district.
+
+       Everything is kept inside the middle 80% so Android can crop it to a
+       circle, a squircle or anything else without cutting the drawing. -->
+  <rect width="512" height="512" rx="112" fill="#1b3a57"/>
+
+  <!-- The page -->
+  <rect x="112" y="128" width="288" height="272" rx="28" fill="#ffffff"/>
+
+  <!-- The binding, and its two rings -->
+  <path d="M112 196a28 28 0 0 1 28-28h232a28 28 0 0 1 28 28v18H112z" fill="#8fb6d6"/>
+  <rect x="168" y="100" width="26" height="62" rx="13" fill="#e8eef4"/>
+  <rect x="318" y="100" width="26" height="62" rx="13" fill="#e8eef4"/>
+
+  <!-- Three weeks of days. The marked one is the answer. -->
+  <g fill="#c6d4df">
+    <rect x="152" y="244" width="40" height="34" rx="9"/>
+    <rect x="212" y="244" width="40" height="34" rx="9"/>
+    <rect x="332" y="244" width="40" height="34" rx="9"/>
+    <rect x="152" y="296" width="40" height="34" rx="9"/>
+    <rect x="272" y="296" width="40" height="34" rx="9"/>
+    <rect x="332" y="296" width="40" height="34" rx="9"/>
+  </g>
+  <rect x="272" y="244" width="40" height="34" rx="9" fill="#1b3a57"/>
+
+  <!-- The day that matters, ticked -->
+  <rect x="200" y="288" width="64" height="50" rx="12" fill="#2f7d5a"/>
+  <path d="M214 313l12 12 24-26" fill="none" stroke="#ffffff" stroke-width="13"
+        stroke-linecap="round" stroke-linejoin="round"/>
 </svg>

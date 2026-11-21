@@ -1,0 +1,44 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 1024 500" width="1024" height="500">
+  <!-- The banner Google shows at the top of the store listing. Plain on
+       purpose: it is read at a glance, often at thumbnail size, so it says
+       one thing. -->
+  <rect width="1024" height="500" fill="#1b3a57"/>
+
+  <!-- A little depth, nothing that competes with the words -->
+  <circle cx="930" cy="60" r="190" fill="#24496b"/>
+  <circle cx="90" cy="470" r="150" fill="#24496b"/>
+
+  <!-- The icon, same calendar as the app's -->
+  <g transform="translate(92, 142) scale(0.42)">
+    <rect width="512" height="512" rx="112" fill="#ffffff"/>
+    <rect x="112" y="128" width="288" height="272" rx="28" fill="#1b3a57"/>
+    <path d="M112 196a28 28 0 0 1 28-28h232a28 28 0 0 1 28 28v18H112z" fill="#4f7ea8"/>
+    <rect x="168" y="100" width="26" height="62" rx="13" fill="#1b3a57"/>
+    <rect x="318" y="100" width="26" height="62" rx="13" fill="#1b3a57"/>
+    <g fill="#3c5d7d">
+      <rect x="152" y="244" width="40" height="34" rx="9"/>
+      <rect x="212" y="244" width="40" height="34" rx="9"/>
+      <rect x="332" y="244" width="40" height="34" rx="9"/>
+      <rect x="152" y="296" width="40" height="34" rx="9"/>
+      <rect x="272" y="296" width="40" height="34" rx="9"/>
+      <rect x="332" y="296" width="40" height="34" rx="9"/>
+    </g>
+    <rect x="272" y="244" width="40" height="34" rx="9" fill="#8fb6d6"/>
+    <rect x="200" y="288" width="64" height="50" rx="12" fill="#3f9b70"/>
+    <path d="M214 313l12 12 24-26" fill="none" stroke="#ffffff" stroke-width="13"
+          stroke-linecap="round" stroke-linejoin="round"/>
+  </g>
+
+  <text x="332" y="212" fill="#ffffff"
+        font-family="Georgia, 'Times New Roman', serif" font-size="78" font-weight="600">
+    School Answers
+  </text>
+  <text x="334" y="276" fill="#b9cfe2"
+        font-family="ui-sans-serif, system-ui, 'Segoe UI', Helvetica, Arial, sans-serif" font-size="33">
+    Is there school tomorrow?
+  </text>
+  <text x="334" y="330" fill="#8fb6d6"
+        font-family="ui-sans-serif, system-ui, 'Segoe UI', Helvetica, Arial, sans-serif" font-size="27">
+    From your own district&#8217;s calendar. Works offline.
+  </text>
+</svg>

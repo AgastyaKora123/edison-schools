@@ -54,6 +54,21 @@ struct School: Codable, Identifiable, Hashable {
     var url: String
     var sectionId: String
 
+    /// Same reasoning as Fact: an empty list written as null, or a field a
+    /// district simply does not have, must not throw away the whole file.
+    init(from decoder: Decoder) throws {
+        let c = try decoder.container(keyedBy: CodingKeys.self)
+        id        = try c.decode(String.self, forKey: .id)
+        name      = try c.decode(String.self, forKey: .name)
+        shortName = try c.decodeIfPresent(String.self, forKey: .shortName) ?? name
+        level     = try c.decodeIfPresent(String.self, forKey: .level) ?? ""
+        aliases   = try c.decodeIfPresent([String].self, forKey: .aliases) ?? []
+        orgId     = try c.decodeIfPresent(Int.self, forKey: .orgId) ?? 0
+        host      = try c.decodeIfPresent(String.self, forKey: .host) ?? ""
+        url       = try c.decodeIfPresent(String.self, forKey: .url) ?? ""
+        sectionId = try c.decodeIfPresent(String.self, forKey: .sectionId) ?? ""
+    }
+
     /// Everything a question might call this school, longest first so
     /// "james madison primary" is preferred over "madison".
     var matchTerms: [String] {
@@ -99,6 +114,22 @@ struct CalendarEntry: Codable {
     var allDay: Bool
     var startTime: String?
     var url: String
+
+    /// Same reasoning as Fact and School. A districtwide entry has no school
+    /// ids, and an empty list is written as null.
+    init(from decoder: Decoder) throws {
+        let c = try decoder.container(keyedBy: CodingKeys.self)
+        date      = try c.decode(String.self, forKey: .date)
+        endDate   = try c.decodeIfPresent(String.self, forKey: .endDate) ?? date
+        title     = try c.decode(String.self, forKey: .title)
+        rawTitle  = try c.decodeIfPresent(String.self, forKey: .rawTitle) ?? title
+        kind      = try c.decodeIfPresent(String.self, forKey: .kind) ?? "event"
+        scope     = try c.decodeIfPresent(String.self, forKey: .scope) ?? "district"
+        schoolIds = try c.decodeIfPresent([String].self, forKey: .schoolIds) ?? []
+        allDay    = try c.decodeIfPresent(Bool.self, forKey: .allDay) ?? true
+        startTime = try c.decodeIfPresent(String.self, forKey: .startTime)
+        url       = try c.decodeIfPresent(String.self, forKey: .url) ?? ""
+    }
 }
 
 struct Fact: Codable, Identifiable {
@@ -111,6 +142,25 @@ struct Fact: Codable, Identifiable {
     /// "parent" or "staff". Staff pages are kept so the app covers everything
     /// the district publishes, but they rank below parent pages.
     var audience: String?
+
+    /// A missing or null list of tags means no tags, not a broken file.
+    ///
+    /// This mattered more than it looks. The information file had `"tags":
+    /// null` on 148 pages - PowerShell writes an empty list that way - and
+    /// the strict decoder refused the entire file over it. Not one page of
+    /// the district's information loaded, and every single check in the app
+    /// failed on the same line. The file is also fixed at the other end, but
+    /// one bad field should never cost the whole app.
+    init(from decoder: Decoder) throws {
+        let c = try decoder.container(keyedBy: CodingKeys.self)
+        id       = try c.decode(String.self, forKey: .id)
+        title    = try c.decode(String.self, forKey: .title)
+        text     = try c.decode(String.self, forKey: .text)
+        url      = try c.decodeIfPresent(String.self, forKey: .url) ?? ""
+        schoolId = try c.decodeIfPresent(String.self, forKey: .schoolId) ?? ""
+        tags     = try c.decodeIfPresent([String].self, forKey: .tags) ?? []
+        audience = try c.decodeIfPresent(String.self, forKey: .audience)
+    }
 }
 
 /// An operational announcement read out of the district's public live feed -

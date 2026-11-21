@@ -1,14 +1,60 @@
 {
+  "id": "/school-answers",
   "name": "School Answers",
   "short_name": "Schools",
-  "description": "Hours, closings, breaks and absences, from your school district's own published information.",
+  "description": "Is there school tomorrow? What time does it start? When is the break? Answers from your own school district's published calendar, on your phone, working offline.",
   "start_url": ".",
   "scope": ".",
   "display": "standalone",
+  "display_override": ["standalone", "minimal-ui"],
   "orientation": "portrait",
+  "lang": "en-US",
+  "dir": "ltr",
   "background_color": "#f7f8f7",
   "theme_color": "#1b3a57",
+  "categories": ["education", "utilities", "productivity"],
   "icons": [
-    { "src": "icon.svg", "sizes": "any", "type": "image/svg+xml", "purpose": "any maskable" }
+    { "src": "icons/icon-192.png", "sizes": "192x192", "type": "image/png", "purpose": "any" },
+    { "src": "icons/icon-512.png", "sizes": "512x512", "type": "image/png", "purpose": "any" },
+    { "src": "icons/icon-maskable-512.png", "sizes": "512x512", "type": "image/png", "purpose": "maskable" },
+    { "src": "icons/icon-1024.png", "sizes": "1024x1024", "type": "image/png", "purpose": "any" },
+    { "src": "icon.svg", "sizes": "any", "type": "image/svg+xml", "purpose": "any" }
+  ],
+  "screenshots": [
+    {
+      "src": "store/screenshots/phone-1-home.jpg",
+      "sizes": "800x1422",
+      "type": "image/jpeg",
+      "form_factor": "narrow",
+      "label": "Today and tomorrow at a glance"
+    },
+    {
+      "src": "store/screenshots/phone-2-answer.jpg",
+      "sizes": "800x1422",
+      "type": "image/jpeg",
+      "form_factor": "narrow",
+      "label": "Ask a question in your own words"
+    },
+    {
+      "src": "store/screenshots/phone-3-districts.jpg",
+      "sizes": "800x1422",
+      "type": "image/jpeg",
+      "form_factor": "narrow",
+      "label": "Pick your district and your children's schools"
+    }
+  ],
+  "shortcuts": [
+    {
+      "name": "Is there school tomorrow?",
+      "short_name": "Tomorrow",
+      "url": "./?ask=is%20there%20school%20tomorrow",
+      "icons": [{ "src": "icons/icon-192.png", "sizes": "192x192" }]
+    },
+    {
+      "name": "Next day off",
+      "short_name": "Next day off",
+      "url": "./?ask=when%20is%20the%20next%20day%20off",
+      "icons": [{ "src": "icons/icon-192.png", "sizes": "192x192" }]
+    }
   ]
 }

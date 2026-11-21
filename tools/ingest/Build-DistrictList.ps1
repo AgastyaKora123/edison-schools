@@ -56,35 +56,123 @@ Add-Type -AssemblyName System.Web.Extensions
 $ser = New-Object System.Web.Script.Serialization.JavaScriptSerializer
 $ser.MaxJsonLength = [int]::MaxValue
 
+function Read-SharedLines {
+    <#
+      Reads a file the searches may still be appending to.
+
+      The plain reader asks for exclusive access and fails outright while a
+      search is running, which makes it impossible to check the list is
+      coming out right until the whole hour is over. This asks only to read,
+      and lets the writer carry on.
+    #>
+    param([Parameter(Mandatory)][string] $Path)
+    $out = New-Object System.Collections.ArrayList
+    $fs = New-Object System.IO.FileStream($Path, [IO.FileMode]::Open,
+                                          [IO.FileAccess]::Read, [IO.FileShare]::ReadWrite)
+    try {
+        $sr = New-Object System.IO.StreamReader($fs, (New-Object System.Text.UTF8Encoding $false))
+        try { while ($null -ne ($l = $sr.ReadLine())) { [void]$out.Add($l) } }
+        finally { $sr.Dispose() }
+    } finally { $fs.Dispose() }
+    return $out.ToArray()
+}
+
 # ------------------------------------------------- 1. which ones are districts
 
 Write-Host ''
 Write-Host '=== Building the district list ===' -ForegroundColor Cyan
 
-$candidates = New-Object System.Collections.ArrayList
-$seen = @{}
-foreach ($line in [IO.File]::ReadAllLines($OrgsFile)) {
+# Everything the first search found, whether or not it looks like a district.
+$orgs = @{}
+foreach ($line in Read-SharedLines $OrgsFile) {
     $t = $line.Trim()
     if (-not $t -or $t -notmatch '"sectionCount"') { continue }
     $o = $null
     try { $o = $ser.DeserializeObject($t) } catch { continue }
     $id = [int]$o['id']
-    if ($seen.ContainsKey($id)) { continue }
-    $seen[$id] = $true
-    if ([int]$o['sectionCount'] -lt $MinSections) { continue }
-    [void]$candidates.Add([pscustomobject]@{
+    if ($orgs.ContainsKey($id)) { continue }
+    $orgs[$id] = [pscustomobject]@{
         Id       = $id
+        Count    = [int]$o['sectionCount']
         Sections = @($o['sectionNames'] | ForEach-Object { [string]$_ })
-    })
+    }
 }
-Write-Host ("  {0} organisations look like districts ({1}+ calendars)" -f $candidates.Count, $MinSections)
+
+$candidates = New-Object System.Collections.ArrayList
+$OwnersFile = Join-Path $CacheDir 'org-owners.jsonl'
+
+if (Test-Path $OwnersFile) {
+    # The good way. Everything a district uploads lives in one folder named
+    # after the district, and its schools upload into the same folder, so the
+    # folder name groups an organisation with its district however many
+    # calendars it keeps. Within a group the district is the one publishing
+    # most calendars, and failing that the oldest number - the one created
+    # when the district signed up.
+    #
+    # This matters because counting calendars alone found only 647 districts
+    # out of several thousand: most districts never split their calendar up,
+    # and judged on calendars they look exactly like a single school.
+    $groups = @{}
+    foreach ($line in Read-SharedLines $OwnersFile) {
+        $t = $line.Trim()
+        if (-not $t -or $t -notmatch '"slug"') { continue }
+        $o = $null
+        try { $o = $ser.DeserializeObject($t) } catch { continue }
+        $slug = [string]$o['slug']
+        if (-not $slug) { continue }
+        $id = [int]$o['id']
+        if (-not $orgs.ContainsKey($id)) { continue }
+        if (-not $groups.ContainsKey($slug)) { $groups[$slug] = New-Object System.Collections.ArrayList }
+        [void]$groups[$slug].Add([pscustomobject]@{
+            Id = $id; Count = $orgs[$id].Count; Sections = $orgs[$id].Sections
+            Fb = [string]$o['fb']
+        })
+    }
+
+    foreach ($slug in $groups.Keys) {
+        $members = @($groups[$slug] | Sort-Object -Property @{ Expression = 'Count'; Descending = $true },
+                                                   @{ Expression = 'Id' })
+        $head = $members[0]
+        # A folder with one organisation in it is a standalone school, not a
+        # district with schools under it.
+        if ($members.Count -lt 2 -and $head.Count -lt $MinSections) { continue }
+        [void]$candidates.Add([pscustomobject]@{
+            Id       = $head.Id
+            Sections = $head.Sections
+            Slug     = $slug
+            Fb       = $head.Fb
+            Members  = $members.Count
+        })
+    }
+    Write-Host ("  {0} districts found by grouping organisations into their own folders" -f $candidates.Count)
+} else {
+    # The fallback, for when the grouping pass has not been run: a district
+    # publishes a calendar per school, a school publishes one.
+    foreach ($id in $orgs.Keys) {
+        if ($orgs[$id].Count -lt $MinSections) { continue }
+        [void]$candidates.Add([pscustomobject]@{
+            Id = $id; Sections = $orgs[$id].Sections; Slug = ''; Fb = ''; Members = 0
+        })
+    }
+    Write-Host ("  {0} organisations look like districts ({1}+ calendars)" -f $candidates.Count, $MinSections)
+    Write-Host '  (run Discover-DistrictOwners.ps1 to find the rest)' -ForegroundColor DarkGray
+}
 
 # ------------------------------------------------- 2. give them names
 
 $known = @{}
 if (Test-Path $NamesFile) {
-    foreach ($line in [IO.File]::ReadAllLines($NamesFile)) {
+    foreach ($line in Read-SharedLines $NamesFile) {
         if ($line -match '"id":(\d+)') { $known[[int]$Matches[1]] = $line.Trim() }
+    }
+}
+# A candidate found by grouping already carries its folder name and its
+# Facebook page, so there is nothing left to ask about it.
+foreach ($c in $candidates) {
+    if ($c.Slug -and -not $known.ContainsKey($c.Id)) {
+        $esc = { param($s) ('"' + (([string]$s) -replace '\\', '\\' -replace '"', '\"') + '"') }
+        $known[$c.Id] = '{"id":' + $c.Id + ',"slug":' + (& $esc $c.Slug) +
+                        ',"fb":' + (& $esc $c.Fb) + ',"site":""}'
     }
 }
 $todo = @($candidates | Where-Object { -not $known.ContainsKey($_.Id) })
@@ -165,7 +253,7 @@ if ($todo.Count) {
         $w.Dispose(); $pool.Close(); $pool.Dispose()
     }
 
-    foreach ($line in [IO.File]::ReadAllLines($NamesFile)) {
+    foreach ($line in Read-SharedLines $NamesFile) {
         if ($line -match '"id":(\d+)') { $known[[int]$Matches[1]] = $line.Trim() }
     }
 }
@@ -179,6 +267,12 @@ function Get-NameFromSlug {
     if (-not $Slug) { return '' }
     # Every folder ends in the same two letters; they are not a state.
     $s = $Slug -replace '_ar$', ''
+    # A trailing state code is shown as the state, not as part of the name:
+    # "Lincoln County Schools, NC" rather than "Lincoln County Schools Nc".
+    $parts = @($s -split '_' | Where-Object { $_ })
+    if ($parts.Count -ge 2 -and ($UsStates -contains $parts[-1].ToLowerInvariant())) {
+        $s = ($parts[0..($parts.Count - 2)]) -join '_'
+    }
     $s = $s -replace '_', ' '
     $s = ($s -replace '\s+', ' ').Trim()
     if (-not $s) { return '' }
@@ -195,6 +289,29 @@ function Get-StateFromHost {
     param([string] $SiteHost)
     $m = [regex]::Match([string]$SiteHost, '\.k12\.([a-z]{2})\.us$')
     if ($m.Success) { return $m.Groups[1].Value.ToUpperInvariant() }
+    return ''
+}
+
+$UsStates = @('al','ak','az','ar','ca','co','ct','de','fl','ga','hi','id','il','in','ia','ks','ky',
+              'la','me','md','ma','mi','mn','ms','mo','mt','ne','nv','nh','nj','nm','ny','nc','nd',
+              'oh','ok','or','pa','ri','sc','sd','tn','tx','ut','vt','va','wa','wv','wi','wy','dc')
+
+function Get-StateFromSlug {
+    <#
+      Districts that share a name often say which state they are in, right in
+      the folder their uploads live in: lincoln_county_schools_nc. Six
+      districts called Lincoln something, with nothing to tell them apart, is
+      a parent guessing; "Lincoln County Schools, NC" is a parent choosing.
+
+      Only the last word counts, and only when it is a real state code, so
+      "Washington School District" keeps its name.
+    #>
+    param([string] $Slug)
+    $s = ([string]$Slug) -replace '_ar$', ''
+    $parts = @($s -split '_' | Where-Object { $_ })
+    if ($parts.Count -lt 2) { return '' }
+    $last = $parts[-1].ToLowerInvariant()
+    if ($UsStates -contains $last) { return $last.ToUpperInvariant() }
     return ''
 }
 
@@ -290,18 +407,25 @@ foreach ($c in $candidates) {
     if ($name -match '(?i)(testing|sandbox|apptegy|thrillshare)') { continue }
     if ($name -match '(?i)\b(test|demo|training|example|sample|dummy|qa|staging|template)\b') { continue }
 
-    # Two or more calendars that name something other than "Events" is what
-    # makes an organisation a district rather than one school keeping several
-    # calendars of its own.
+    # How many schools to show beside the name, so a parent can tell two
+    # similarly named districts apart. The organisations sharing this
+    # district's upload folder are its schools, which is a truer count than
+    # its calendars - plenty of districts keep one calendar for everything.
     $k = Get-SchoolSectionCount $c.Sections
-    if ($k -lt 2) { continue }
+    if ($c.Members -gt 1 -and ($c.Members - 1) -gt $k) { $k = $c.Members - 1 }
+    if ($k -lt 1) { continue }
 
     $trusted = Get-TrustedSite -SiteHost $site -Name $name
+
+    # The website names the state most reliably; the upload folder is the
+    # fallback and covers many more districts.
+    $state = Get-StateFromHost $trusted
+    if (-not $state) { $state = Get-StateFromSlug $slug }
 
     [void]$rows.Add([pscustomobject]@{
         o = $c.Id
         n = $name
-        s = Get-StateFromHost $trusted
+        s = $state
         u = $trusted
         k = $k
     })
