@@ -803,6 +803,13 @@
                 'break_dates', 'none', [CAL_URL], 0.4);
     }
 
+    // A break closes the whole district, so the district's own entry is the
+    // answer. Without this, a school's "FDR Thanksgiving Feast" or "Single
+    // Session Day- Spring Break" outranks the actual recess and a parent is
+    // told the wrong week.
+    const districtOnly = cands.filter((e) => e.scope === 'district');
+    if (districtOnly.length) cands = districtOnly;
+
     const todayKey = isoOf(ctx.today);
     const future = cands.filter((e) => e.date >= todayKey).sort((a, b) => a.date.localeCompare(b.date));
     const past = cands.slice().sort((a, b) => b.date.localeCompare(a.date));

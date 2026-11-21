@@ -38,11 +38,19 @@ $DistrictHost = 'www.edison.k12.nj.us'
 $UserAgent = 'EdisonParentAgent/1.0 (district information cache; contact webmaster@edison.k12.nj.us)'
 
 function Get-CacheFile {
-    # Must match Get-Cached in Build-KnowledgePack.ps1 exactly, or the
-    # collection will not find what this downloaded.
+    # Must match Get-CacheKey in Build-KnowledgePack.ps1 exactly, or the
+    # collection will not find what this downloaded. Long addresses are hashed
+    # rather than truncated: the feed addresses differ only at the end, and
+    # cutting them made twenty schools share one file.
     param([string] $Url)
     $key = [Convert]::ToBase64String([Text.Encoding]::UTF8.GetBytes($Url)) -replace '[/+=]', '_'
-    if ($key.Length -gt 120) { $key = $key.Substring(0, 120) }
+    if ($key.Length -gt 120) {
+        $sha = [Security.Cryptography.SHA256]::Create()
+        try {
+            $hash = [BitConverter]::ToString($sha.ComputeHash([Text.Encoding]::UTF8.GetBytes($Url))).Replace('-', '')
+        } finally { $sha.Dispose() }
+        $key = $key.Substring(0, 60) + '_' + $hash.Substring(0, 32)
+    }
     return Join-Path $CacheDir "$key.txt"
 }
 

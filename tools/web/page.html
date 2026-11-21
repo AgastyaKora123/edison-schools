@@ -86,6 +86,10 @@
 
 * { box-sizing: border-box; }
 
+/* Must beat the display:flex rules below, or hiding a panel does nothing and
+   two screens end up stacked on top of each other. */
+[hidden] { display: none !important; }
+
 html, body { height: 100%; }
 
 body {
@@ -206,6 +210,62 @@ main {
   color: var(--ink-faint);
   font-weight: 600;
   margin: 4px 0 -4px;
+}
+
+/* ---------------------------------------------------------------- welcome */
+
+#welcome {
+  flex: 1 1 auto;
+  overflow-y: auto;
+  padding-block: 28px 20px;
+  display: flex;
+  justify-content: center;
+}
+.welcome-inner {
+  width: 100%; max-width: 520px;
+  display: flex; flex-direction: column; gap: 14px;
+}
+.welcome-inner h1 {
+  font-family: var(--display); font-size: 27px; font-weight: 600;
+  line-height: 1.2; margin: 0; text-wrap: balance;
+}
+.welcome-inner p { margin: 0; color: var(--ink-soft); font-size: 15px; max-width: 46ch; }
+.welcome-inner em { font-style: normal; color: var(--ink); font-weight: 600; }
+/* On the welcome screen the list is the whole point, so let it run to its
+   full length and scroll the page, rather than scrolling inside a short box. */
+#welcome-picker { max-height: none; overflow: visible; flex: 0 0 auto; }
+.welcome-btn {
+  position: sticky; bottom: 0;
+  font: inherit; font-size: 16px; font-weight: 600;
+  background: var(--accent); color: var(--accent-ink);
+  border: none; border-radius: var(--r-md); padding: 15px; cursor: pointer;
+}
+.welcome-btn:disabled { background: var(--line); color: var(--ink-faint); cursor: default; }
+.welcome-btn:focus-visible { outline: 2px solid var(--accent); outline-offset: 2px; }
+.welcome-skip {
+  background: none; border: none; font: inherit; font-size: 13.5px;
+  color: var(--ink-faint); text-decoration: underline; text-underline-offset: 3px;
+  cursor: pointer; padding: 4px;
+}
+
+/* ---------------------------------------------------------------- events */
+
+.glance-events {
+  margin-top: 10px; padding-top: 10px;
+  border-top: 1px dashed var(--line);
+  display: flex; flex-direction: column; gap: 4px;
+}
+.glance-events .evt-head {
+  font-size: 11px; font-weight: 700; letter-spacing: .07em;
+  text-transform: uppercase; color: var(--ink-faint); margin-bottom: 2px;
+}
+.glance-events .evt {
+  font-size: 13px; color: var(--ink-soft);
+  display: flex; gap: 8px; align-items: baseline;
+}
+.glance-events .evt b { font-weight: 600; color: var(--ink); }
+.glance-events .evt .who {
+  font-size: 11px; color: var(--ink-faint); white-space: nowrap;
 }
 
 /* ---------------------------------------------------------------- glance */
@@ -490,6 +550,24 @@ dialog::backdrop { background: rgba(0,0,0,.45); }
   </button>
   <button class="hbtn" id="settings-btn" type="button">Settings</button>
 </header>
+
+<!-- The first thing a new person sees. Everything else stays hidden until
+     they have told us whose school days they care about, because an answer
+     for "all Edison schools" is three times longer and less use than an
+     answer for their own children. -->
+<section id="welcome" class="gutter" hidden>
+  <div class="welcome-inner">
+    <h1>Which schools are yours?</h1>
+    <p>Pick every school your children go to. Then this app can tell you
+       whether <em>they</em> have school tomorrow, and what time
+       <em>they</em> get out.</p>
+    <div id="welcome-picker" class="picker"></div>
+    <button id="welcome-done" class="welcome-btn" type="button" disabled>
+      Pick at least one school
+    </button>
+    <button id="welcome-skip" class="welcome-skip" type="button">Skip for now</button>
+  </div>
+</section>
 
 <main id="thread" class="gutter">
   <div class="wrap" id="wrap">

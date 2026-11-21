@@ -23,6 +23,21 @@ function Get-Web {
             $r = Invoke-WebRequest -Uri $Url -UserAgent $script:UserAgent `
                  -UseBasicParsing -TimeoutSec $TimeoutSec
             Start-Sleep -Milliseconds $DelayMs
+
+            # Decode as UTF-8 ourselves rather than trusting the response
+            # header. The calendar feed is served as "text/calendar" with no
+            # character set named, so PowerShell falls back to Latin-1 and
+            # every emoji in a school's event titles turns to mojibake
+            # ("ð Spirit Week"). Everything these sites serve is UTF-8.
+            try {
+                $stream = $r.RawContentStream
+                if ($stream) {
+                    $stream.Position = 0
+                    return [Text.Encoding]::UTF8.GetString($stream.ToArray())
+                }
+            } catch {
+                # Fall through to whatever PowerShell decoded.
+            }
             return [string]$r.Content
         } catch {
             $msg = $_.Exception.Message

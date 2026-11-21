@@ -1142,6 +1142,13 @@ function Invoke-Resolver-BreakDates {
                           -Sources @('https://www.edison.k12.nj.us/page/district-yearly-calendar/')
     }
 
+    # A break closes the whole district, so the district's own entry is the
+    # answer. Without this, a school's "FDR Thanksgiving Feast" or "Single
+    # Session Day- Spring Break" outranks the actual recess and a parent is
+    # told the wrong week.
+    $districtOnly = @($cands | Where-Object { [string](D $_ 'scope') -eq 'district' })
+    if (@($districtOnly).Count) { $cands = $districtOnly }
+
     # Prefer the next upcoming one; fall back to the most recent.
     $future = @($cands | Where-Object { $d = Parse-PackDate ([string](D $_ 'date')); $d -and $d -ge $today } |
                 Sort-Object { Parse-PackDate ([string](D $_ 'date')) })

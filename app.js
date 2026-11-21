@@ -626,6 +626,54 @@
         day.appendChild(why);
       }
 
+      // What is actually happening at their schools — spirit week, picture
+      // day, a concert. The district publishes these per school and we
+      // already collect them; they were just never being shown.
+      const key = E.isoOf(d.date);
+      const evts = [];
+      for (const e of (PACK.calendar || [])) {
+        if (e.kind !== 'event') continue;
+        const ends = e.endDate || e.date;
+        if (!(key >= e.date && key <= ends)) continue;
+        if (e.scope === 'district') { evts.push({ title: e.title, who: null }); continue; }
+        for (const id of (e.schoolIds || [])) {
+          if (schoolIds.indexOf(id) < 0) continue;
+          const s = schoolById(id);
+          evts.push({ title: e.title, who: s ? s.shortName : null });
+        }
+      }
+
+      if (evts.length) {
+        const box = document.createElement('div');
+        box.className = 'glance-events';
+        const h = document.createElement('div');
+        h.className = 'evt-head';
+        h.textContent = evts.length === 1 ? 'Also on' : 'Also on (' + evts.length + ')';
+        box.appendChild(h);
+        // A few at most; the rest are a question away.
+        for (const ev of evts.slice(0, 4)) {
+          const row = document.createElement('div');
+          row.className = 'evt';
+          const b = document.createElement('b');
+          b.textContent = ev.title;
+          row.appendChild(b);
+          if (ev.who && schoolIds.length > 1) {
+            const who = document.createElement('span');
+            who.className = 'who';
+            who.textContent = ev.who;
+            row.appendChild(who);
+          }
+          box.appendChild(row);
+        }
+        if (evts.length > 4) {
+          const more = document.createElement('div');
+          more.className = 'evt';
+          more.textContent = '+ ' + (evts.length - 4) + ' more';
+          box.appendChild(more);
+        }
+        day.appendChild(box);
+      }
+
       card.appendChild(day);
     });
 
@@ -712,40 +760,62 @@
 
   // ---------------------------------------------------------------- settings
 
-  function renderSettings() {
-    const picker = el('schoolpicker');
-    if (!picker.childNodes.length) {
-      const order = ['elementary', 'middle', 'high', 'academy', 'eelc', 'fdr'];
-      for (const lvl of order) {
-        const group = (PACK.schools || []).filter((s) => s.level === lvl)
-          .sort((a, b) => a.name.localeCompare(b.name));
-        if (!group.length) continue;
-        const g = document.createElement('div');
-        g.className = 'grp';
-        g.textContent = E.levelLabel(lvl);
-        picker.appendChild(g);
-        for (const s of group) {
-          const lab = document.createElement('label');
-          const cb = document.createElement('input');
-          cb.type = 'checkbox';
-          cb.value = s.id;
-          cb.id = 'sch-' + s.id;
-          cb.addEventListener('change', () => {
-            if (cb.checked) { if (schoolIds.indexOf(s.id) < 0) schoolIds.push(s.id); }
-            else { schoolIds = schoolIds.filter((x) => x !== s.id); }
-            saveSchools();
-            applySchool();
-            checkAlerts();
-          });
-          lab.appendChild(cb);
-          lab.appendChild(document.createTextNode(s.name));
-          picker.appendChild(lab);
-        }
+  /**
+   * Builds the school checklist into a container. Used by both the welcome
+   * screen and Settings, so there is one list to keep right rather than two.
+   */
+  function buildPicker(container, idPrefix, onChange) {
+    if (container.childNodes.length) return;
+    const order = ['elementary', 'middle', 'high', 'academy', 'eelc', 'fdr'];
+    for (const lvl of order) {
+      const group = (PACK.schools || []).filter((s) => s.level === lvl)
+        .sort((a, b) => a.name.localeCompare(b.name));
+      if (!group.length) continue;
+      const g = document.createElement('div');
+      g.className = 'grp';
+      g.textContent = E.levelLabel(lvl);
+      container.appendChild(g);
+      for (const s of group) {
+        const lab = document.createElement('label');
+        const cb = document.createElement('input');
+        cb.type = 'checkbox';
+        cb.value = s.id;
+        cb.id = idPrefix + s.id;
+        cb.addEventListener('change', () => {
+          if (cb.checked) { if (schoolIds.indexOf(s.id) < 0) schoolIds.push(s.id); }
+          else { schoolIds = schoolIds.filter((x) => x !== s.id); }
+          saveSchools();
+          syncPickers();
+          if (onChange) onChange();
+        });
+        lab.appendChild(cb);
+        lab.appendChild(document.createTextNode(s.name));
+        container.appendChild(lab);
       }
     }
-    for (const cb of picker.querySelectorAll('input[type=checkbox]')) {
-      cb.checked = schoolIds.indexOf(cb.value) >= 0;
+  }
+
+  /** Keeps both copies of the list ticked the same way. */
+  function syncPickers() {
+    for (const id of ['schoolpicker', 'welcome-picker']) {
+      const c = el(id);
+      if (!c) continue;
+      for (const cb of c.querySelectorAll('input[type=checkbox]')) {
+        cb.checked = schoolIds.indexOf(cb.value) >= 0;
+      }
     }
+    const done = el('welcome-done');
+    if (done) {
+      done.disabled = schoolIds.length === 0;
+      done.textContent = schoolIds.length === 0
+        ? 'Pick at least one school'
+        : (schoolIds.length === 1 ? 'Done' : `Done — ${schoolIds.length} schools`);
+    }
+  }
+
+  function renderSettings() {
+    buildPicker(el('schoolpicker'), 'sch-', () => { applySchool(); checkAlerts(); });
+    syncPickers();
 
     const stat = el('alertstat');
     const help = el('alerthelp');
@@ -863,10 +933,45 @@
     if (!document.hidden) checkAlerts();
   });
 
+  // ---------------------------------------------------------------- welcome
+
+  /**
+   * Shown once, to someone who has not said whose schools they care about.
+   * "Skip for now" is there deliberately: nobody should be made to fill in a
+   * form before they can look at anything.
+   */
+  function showWelcome() {
+    const w = el('welcome');
+    if (!w) return;
+    buildPicker(el('welcome-picker'), 'wel-', null);
+    syncPickers();
+    w.hidden = false;
+    el('thread').hidden = true;
+    el('composer').hidden = true;
+  }
+
+  function closeWelcome() {
+    const w = el('welcome');
+    if (w) w.hidden = true;
+    el('thread').hidden = false;
+    el('composer').hidden = false;
+    try { localStorage.setItem('welcomed', '1'); } catch (e) { /* ignore */ }
+    applySchool();
+    renderSettings();
+    checkAlerts();
+  }
+
+  el('welcome-done').addEventListener('click', closeWelcome);
+  el('welcome-skip').addEventListener('click', closeWelcome);
+
   renderChips();
   applySchool();
   renderSettings();
   checkAlerts();
+
+  if (!schoolIds.length && store.get('welcomed', '') !== '1') {
+    showWelcome();
+  }
 
   if ('serviceWorker' in navigator && location.protocol.startsWith('http')) {
     navigator.serviceWorker.register('sw.js').catch(() => { /* offline is a bonus, not a requirement */ });

@@ -58,11 +58,32 @@ $ApiBase      = "https://thrillshare-cmsv2.services.thrillshare.com/api/v4/o/$Or
 
 $script:Stats = [ordered]@{ fetched = 0; cached = 0; failed = 0 }
 
+function Get-CacheKey {
+    <#
+      A filename for a downloaded page.
+
+      Readable where it can be, hashed where it cannot. Truncating was a real
+      bug: these feed addresses are identical except for the school id at the
+      very end, so chopping them to a fixed length gave all twenty schools the
+      same filename, and every school ended up with whichever was downloaded
+      first - the district's calendar. Every school's events and its own
+      closings were silently wrong.
+    #>
+    param([Parameter(Mandatory)][string] $Url)
+    $key = [Convert]::ToBase64String([Text.Encoding]::UTF8.GetBytes($Url)) -replace '[/+=]', '_'
+    if ($key.Length -le 120) { return $key }
+    $sha = [Security.Cryptography.SHA256]::Create()
+    try {
+        $hash = [BitConverter]::ToString($sha.ComputeHash([Text.Encoding]::UTF8.GetBytes($Url))).Replace('-', '')
+    } finally { $sha.Dispose() }
+    # Keep a readable head so the folder can still be eyeballed.
+    return ($key.Substring(0, 60) + '_' + $hash.Substring(0, 32))
+}
+
 function Get-Cached {
     <# HTTP with an on-disk cache so reruns and -Offline are cheap. #>
     param([Parameter(Mandatory)][string] $Url)
-    $key  = [Convert]::ToBase64String([Text.Encoding]::UTF8.GetBytes($Url)) -replace '[/+=]', '_'
-    if ($key.Length -gt 120) { $key = $key.Substring(0, 120) }
+    $key  = Get-CacheKey -Url $Url
     $file = Join-Path $CacheDir "$key.txt"
 
     if ((Test-Path $file) -and ($Offline -or ((Get-Item $file).LastWriteTime -gt (Get-Date).AddHours(-6)))) {
@@ -559,6 +580,21 @@ foreach ($a in @($alerts)) {
 }
 
 # ============================================================ emit
+
+# A repeating event - a weekly club, a monthly board meeting - comes out of the
+# district's feed projected decades ahead. Left alone that is 9,000 entries
+# reaching to the year 2099, nearly seven megabytes, for information nobody
+# will ever ask about. Keep this school year and the start of the next.
+$horizon = if ((Get-Date).Month -ge 8) {
+    (Get-Date -Year ((Get-Date).Year + 1) -Month 8 -Day 31).Date
+} else {
+    (Get-Date -Year (Get-Date).Year -Month 8 -Day 31).Date
+}
+$horizonKey = $horizon.ToString('yyyy-MM-dd')
+$before = @($calendar).Count
+$calendar = @($calendar | Where-Object { [string]$_.date -le $horizonKey })
+Write-Host ("      calendar trimmed to {0}: {1} kept, {2} dropped as far-future repeats" -f `
+    $horizonKey, @($calendar).Count, ($before - @($calendar).Count)) -ForegroundColor DarkGray
 
 $pack = [ordered]@{
     schemaVersion = 1
