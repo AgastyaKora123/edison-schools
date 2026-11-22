@@ -33,30 +33,31 @@ struct ContentView: View {
         "What's on the calendar next week?"
     ]
 
+    // HomeView owns the NavigationStack now; this screen is pushed into it.
+    // Settings stays reachable from here too: someone halfway through asking
+    // about the wrong district should not have to go back to change it.
     var body: some View {
-        NavigationStack {
-            Group {
-                if let error = store.loadError {
-                    errorState(error)
-                } else {
-                    transcript
-                }
+        Group {
+            if let error = store.loadError {
+                errorState(error)
+            } else {
+                transcript
             }
-            .navigationTitle(districtTitle)
-            .navigationBarTitleDisplayMode(.inline)
-            .toolbar {
-                ToolbarItem(placement: .topBarTrailing) {
-                    Button { showSettings = true } label: {
-                        Image(systemName: "gearshape")
-                    }
-                    .accessibilityLabel("Settings")
-                }
-            }
-            .sheet(isPresented: $showSettings) {
-                SettingsView().environmentObject(store)
-            }
-            .safeAreaInset(edge: .bottom) { composer }
         }
+        .navigationTitle("Ask")
+        .navigationBarTitleDisplayMode(.inline)
+        .toolbar {
+            ToolbarItem(placement: .topBarTrailing) {
+                Button { showSettings = true } label: {
+                    Image(systemName: "gearshape")
+                }
+                .accessibilityLabel("Settings")
+            }
+        }
+        .sheet(isPresented: $showSettings) {
+            SettingsView().environmentObject(store)
+        }
+        .safeAreaInset(edge: .bottom) { composer }
     }
 
     // MARK: - Transcript
@@ -95,14 +96,6 @@ struct ContentView: View {
                 }
             }
         }
-    }
-
-    /// The short form, because "Edison Township Public Schools" does not fit
-    /// across the top of a phone and is truncated to something worse.
-    private var districtTitle: String {
-        guard let name = store.pack?.district.name else { return "School Answers" }
-        let short = AnswerEngine.shortDistrictName(name)
-        return short.isEmpty ? "School Answers" : short
     }
 
     /// "Edison schools", or "your schools" when no district is loaded yet.

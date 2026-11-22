@@ -27,7 +27,7 @@ struct EdisonParentApp: App {
 
     var body: some Scene {
         WindowGroup {
-            ContentView()
+            HomeView()
                 .environmentObject(store)
                 .task {
                     Self.sharedBox.store = store
