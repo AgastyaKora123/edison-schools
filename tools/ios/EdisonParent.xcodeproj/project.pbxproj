@@ -267,14 +267,14 @@
 				INFOPLIST_KEY_UIBackgroundModes = fetch;
 				INFOPLIST_KEY_UISupportedInterfaceOrientations_iPad = "UIInterfaceOrientationPortrait UIInterfaceOrientationPortraitUpsideDown UIInterfaceOrientationLandscapeLeft UIInterfaceOrientationLandscapeRight";
 				INFOPLIST_KEY_UISupportedInterfaceOrientations_iPhone = "UIInterfaceOrientationPortrait";
-				INFOPLIST_KEY_CFBundleDisplayName = "Edison Parent";
-				INFOPLIST_KEY_BGTaskSchedulerPermittedIdentifiers = "com.example.EdisonParent.checkClosings";
+				INFOPLIST_KEY_CFBundleDisplayName = "School Answers";
+				INFOPLIST_KEY_BGTaskSchedulerPermittedIdentifiers = "io.github.agastyakora123.schoolanswers.checkClosings";
 				LD_RUNPATH_SEARCH_PATHS = (
 					"$(inherited)",
 					"@executable_path/Frameworks",
 				);
 				MARKETING_VERSION = 1.0;
-				PRODUCT_BUNDLE_IDENTIFIER = "com.example.EdisonParent";
+				PRODUCT_BUNDLE_IDENTIFIER = "io.github.agastyakora123.schoolanswers";
 				PRODUCT_NAME = "$(TARGET_NAME)";
 				SWIFT_EMIT_LOC_STRINGS = YES;
 				TARGETED_DEVICE_FAMILY = "1,2";
@@ -297,14 +297,14 @@
 				INFOPLIST_KEY_UIBackgroundModes = fetch;
 				INFOPLIST_KEY_UISupportedInterfaceOrientations_iPad = "UIInterfaceOrientationPortrait UIInterfaceOrientationPortraitUpsideDown UIInterfaceOrientationLandscapeLeft UIInterfaceOrientationLandscapeRight";
 				INFOPLIST_KEY_UISupportedInterfaceOrientations_iPhone = "UIInterfaceOrientationPortrait";
-				INFOPLIST_KEY_CFBundleDisplayName = "Edison Parent";
-				INFOPLIST_KEY_BGTaskSchedulerPermittedIdentifiers = "com.example.EdisonParent.checkClosings";
+				INFOPLIST_KEY_CFBundleDisplayName = "School Answers";
+				INFOPLIST_KEY_BGTaskSchedulerPermittedIdentifiers = "io.github.agastyakora123.schoolanswers.checkClosings";
 				LD_RUNPATH_SEARCH_PATHS = (
 					"$(inherited)",
 					"@executable_path/Frameworks",
 				);
 				MARKETING_VERSION = 1.0;
-				PRODUCT_BUNDLE_IDENTIFIER = "com.example.EdisonParent";
+				PRODUCT_BUNDLE_IDENTIFIER = "io.github.agastyakora123.schoolanswers";
 				PRODUCT_NAME = "$(TARGET_NAME)";
 				SWIFT_EMIT_LOC_STRINGS = YES;
 				TARGETED_DEVICE_FAMILY = "1,2";
@@ -319,7 +319,7 @@
 				CURRENT_PROJECT_VERSION = 1;
 				GENERATE_INFOPLIST_FILE = YES;
 				MARKETING_VERSION = 1.0;
-				PRODUCT_BUNDLE_IDENTIFIER = "com.example.EdisonParentTests";
+				PRODUCT_BUNDLE_IDENTIFIER = "io.github.agastyakora123.schoolanswersTests";
 				PRODUCT_NAME = "$(TARGET_NAME)";
 				SWIFT_EMIT_LOC_STRINGS = NO;
 				TARGETED_DEVICE_FAMILY = "1,2";
@@ -335,7 +335,7 @@
 				CURRENT_PROJECT_VERSION = 1;
 				GENERATE_INFOPLIST_FILE = YES;
 				MARKETING_VERSION = 1.0;
-				PRODUCT_BUNDLE_IDENTIFIER = "com.example.EdisonParentTests";
+				PRODUCT_BUNDLE_IDENTIFIER = "io.github.agastyakora123.schoolanswersTests";
 				PRODUCT_NAME = "$(TARGET_NAME)";
 				SWIFT_EMIT_LOC_STRINGS = NO;
 				TARGETED_DEVICE_FAMILY = "1,2";

@@ -1,6 +1,6 @@
 //
 //  ClosingNotifier.swift
-//  Edison Parent
+//  School Answers
 //
 //  Local notifications for closings found in the district's live feed, and the
 //  background task that looks for them.
@@ -34,7 +34,7 @@ enum ClosingNotifier {
 
     /// Must also be listed under BGTaskSchedulerPermittedIdentifiers in
     /// Info.plist, or registration throws at launch.
-    static let taskIdentifier = "com.example.EdisonParent.checkClosings"
+    static let taskIdentifier = "io.github.agastyakora123.schoolanswers.checkClosings"
 
     // MARK: - Permission
 

@@ -83,6 +83,70 @@ jobs:
             CODE_SIGNING_ALLOWED=NO \
             test 2>&1 | tee test.log
 
+      - name: Photograph the app for the App Store
+        if: always()
+        working-directory: tools/ios
+        run: |
+          # Apple needs at least one iPhone screenshot at a size it names, and
+          # the owner of this project has neither a Mac nor an iPhone. The
+          # simulator here is a real iPhone as far as the app is concerned, so
+          # the picture it takes is a real screenshot, at exactly the pixel
+          # size Apple asks for - not a mock-up and not something stretched.
+          #
+          # Prefer a Dynamic Island iPhone: 1179x2556 and 1206x2622 are the
+          # sizes App Store Connect lists as required.
+          set +e
+          PICK=$(xcrun simctl list devices available --json \
+            | python3 -c "
+import json,sys
+d = json.load(sys.stdin)['devices']
+want = ['iPhone 16 Pro', 'iPhone 15 Pro', 'iPhone 16', 'iPhone 15']
+flat = [x for k in d for x in d[k] if 'iPhone' in x['name']]
+for w in want:
+    for x in flat:
+        if x['name'] == w:
+            print(x['udid'], x['name']); raise SystemExit
+if flat:
+    print(flat[0]['udid'], flat[0]['name'])
+")
+          UDID=$(echo "$PICK" | cut -d' ' -f1)
+          MODEL=$(echo "$PICK" | cut -d' ' -f2-)
+          echo "Using $MODEL ($UDID)"
+          [ -z "$UDID" ] && { echo "No iPhone simulator; skipping."; exit 0; }
+
+          APP=$(find build/Build/Products -maxdepth 2 -name "*.app" -type d | head -1)
+          [ -z "$APP" ] && { echo "No built app to photograph; skipping."; exit 0; }
+
+          xcrun simctl boot "$UDID" 2>/dev/null
+          xcrun simctl bootstatus "$UDID" -b 2>/dev/null
+          xcrun simctl install "$UDID" "$APP"
+          BUNDLE=$(/usr/libexec/PlistBuddy -c "Print :CFBundleIdentifier" "$APP/Info.plist")
+          xcrun simctl launch "$UDID" "$BUNDLE"
+          # The first screen builds its list and checks the live feed; give it
+          # a moment so the picture is of the app, not of a blank frame.
+          sleep 12
+
+          mkdir -p screenshots
+          xcrun simctl io "$UDID" screenshot --type=png screenshots/iphone-1-home.png
+          xcrun simctl shutdown "$UDID" 2>/dev/null
+
+          if [ -f screenshots/iphone-1-home.png ]; then
+            SIZE=$(sips -g pixelWidth -g pixelHeight screenshots/iphone-1-home.png \
+                   | awk '/pixel/ {printf "%s", $2 " "}')
+            echo "captured: $SIZE on $MODEL"
+            echo "$SIZE $MODEL" > screenshots/SIZE.txt
+          fi
+          exit 0
+
+      - name: Keep the screenshots where they can be downloaded
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: app-store-screenshots
+          path: tools/ios/screenshots
+          if-no-files-found: ignore
+          retention-days: 30
+
       - name: Write down what happened
         if: always()
         working-directory: tools/ios
@@ -134,6 +198,15 @@ jobs:
             else
               echo "NO - it never ran. Everything above is about other checks."
             fi
+            echo ""
+            echo "--- App Store screenshot ---"
+            if [ -f screenshots/SIZE.txt ]; then
+              echo "captured $(cat screenshots/SIZE.txt)"
+              echo "on the site at store/screenshots-iphone/"
+            else
+              echo "(none captured)"
+            fi
+            echo ""
             echo "--- totals ---"
             grep -E "Executed [0-9]+ test" test.log 2>/dev/null | tail -3 || echo "(tests did not run)"
           } > "$OUT"
@@ -148,6 +221,17 @@ jobs:
           git config user.email "edison-parent@users.noreply.github.com"
           cp tools/ios/ios-build-result.txt ios-build-result.txt
           git add ios-build-result.txt
+
+          # The screenshot goes on the website too, not only into a build
+          # artifact: artifacts need a GitHub sign-in and a hunt through a
+          # logs page, and the person who needs this file is filling in a
+          # form on App Store Connect with a phone in their hand.
+          if [ -d tools/ios/screenshots ]; then
+            mkdir -p store/screenshots-iphone
+            cp tools/ios/screenshots/*.png store/screenshots-iphone/ 2>/dev/null || true
+            cp tools/ios/screenshots/SIZE.txt store/screenshots-iphone/ 2>/dev/null || true
+            git add store/screenshots-iphone || true
+          fi
           if git diff --cached --quiet; then
             echo "Same result as last time; nothing to record."
             exit 0

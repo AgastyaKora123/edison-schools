@@ -14,7 +14,7 @@
 
 name: EdisonParent
 options:
-  bundleIdPrefix: com.example
+  bundleIdPrefix: io.github.agastyakora123
   deploymentTarget:
     iOS: "17.0"
   createIntermediateGroups: true
@@ -34,15 +34,15 @@ targets:
       - path: EdisonParent
     settings:
       base:
-        INFOPLIST_KEY_CFBundleDisplayName: Edison Parent
+        INFOPLIST_KEY_CFBundleDisplayName: School Answers
         INFOPLIST_KEY_UILaunchScreen_Generation: YES
         INFOPLIST_KEY_UIApplicationSceneManifest_Generation: YES
         INFOPLIST_KEY_UISupportedInterfaceOrientations_iPhone: UIInterfaceOrientationPortrait
         # Background checks for closings posted to the district's live feed.
         INFOPLIST_KEY_UIBackgroundModes: fetch
-        INFOPLIST_KEY_BGTaskSchedulerPermittedIdentifiers: com.example.EdisonParent.checkClosings
+        INFOPLIST_KEY_BGTaskSchedulerPermittedIdentifiers: io.github.agastyakora123.schoolanswers.checkClosings
         GENERATE_INFOPLIST_FILE: YES
-        PRODUCT_BUNDLE_IDENTIFIER: com.example.EdisonParent
+        PRODUCT_BUNDLE_IDENTIFIER: io.github.agastyakora123.schoolanswers
         TARGETED_DEVICE_FAMILY: "1,2"
 
   EdisonParentTests:
@@ -55,7 +55,7 @@ targets:
     settings:
       base:
         GENERATE_INFOPLIST_FILE: YES
-        PRODUCT_BUNDLE_IDENTIFIER: com.example.EdisonParentTests
+        PRODUCT_BUNDLE_IDENTIFIER: io.github.agastyakora123.schoolanswersTests
 
 schemes:
   EdisonParent:
