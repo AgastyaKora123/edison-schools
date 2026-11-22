@@ -13,6 +13,11 @@ import Foundation
 struct KnowledgePack: Codable {
     var schemaVersion: Int
     var generatedAt: String
+    /// True when the app read this district's calendar itself rather than
+    /// being handed a file prepared on a desktop. Such a pack has no bell
+    /// times, office numbers or page text, so the screens that show those
+    /// can say so instead of looking broken.
+    var builtInApp: Bool?
     var district: District
     var schools: [School]
     var bells: [BellSchedule]
@@ -62,6 +67,23 @@ struct School: Codable, Identifiable, Hashable {
     var host: String
     var url: String
     var sectionId: String
+
+    /// Writing `init(from:)` below costs the free memberwise one, and the
+    /// district builder needs to make these itself. Everything a
+    /// built-on-the-phone district has no way of knowing defaults to empty.
+    init(id: String, name: String, shortName: String = "", level: String = "",
+         aliases: [String] = [], orgId: Int = 0, host: String = "",
+         url: String = "", sectionId: String = "") {
+        self.id = id
+        self.name = name
+        self.shortName = shortName.isEmpty ? name : shortName
+        self.level = level
+        self.aliases = aliases
+        self.orgId = orgId
+        self.host = host
+        self.url = url
+        self.sectionId = sectionId
+    }
 
     /// Same reasoning as Fact: an empty list written as null, or a field a
     /// district simply does not have, must not throw away the whole file.
@@ -123,6 +145,23 @@ struct CalendarEntry: Codable {
     var allDay: Bool
     var startTime: String?
     var url: String
+
+    /// As with School: the tolerant decoder below costs the free memberwise
+    /// initialiser, and the district builder makes these itself.
+    init(date: String, endDate: String, title: String, rawTitle: String,
+         kind: String, scope: String, schoolIds: [String], allDay: Bool,
+         startTime: String?, url: String) {
+        self.date = date
+        self.endDate = endDate
+        self.title = title
+        self.rawTitle = rawTitle
+        self.kind = kind
+        self.scope = scope
+        self.schoolIds = schoolIds
+        self.allDay = allDay
+        self.startTime = startTime
+        self.url = url
+    }
 
     /// Same reasoning as Fact and School. A districtwide entry has no school
     /// ids, and an empty list is written as null.
@@ -252,6 +291,20 @@ struct Rules: Codable {
     /// question has one of these and no date could be worked out, saying so
     /// beats confidently answering about today.
     var dayHints: [String]?
+
+    /// What a calendar entry means, worked out from its title. Used when the
+    /// app reads a district's calendar itself rather than being handed a
+    /// prepared file.
+    var eventKinds: [EventKindRule]?
+
+    /// Noise districts put at the front of their calendar titles -
+    /// "Districtwide:", "MON - ", "8:00 am - ".
+    var titlePrefixes: [String]?
+
+    struct EventKindRule: Codable {
+        var kind: String
+        var pattern: String
+    }
 
     /// How to read closings out of the district's live feed. Shared verbatim
     /// with engine/Alerts.ps1 so both parsers behave identically.

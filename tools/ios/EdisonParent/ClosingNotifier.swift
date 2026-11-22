@@ -87,9 +87,18 @@ enum ClosingNotifier {
         UserDefaults.standard.set(Array(alreadySent.suffix(200)), forKey: "notifiedAlertIds")
     }
 
+    /// What to call the schools when the parent has not named one. The
+    /// chosen district's name is saved alongside its calendar, so a
+    /// notification arriving at 6am says whose schools are shut.
+    static var districtLabel: String {
+        let saved = UserDefaults.standard.string(forKey: "districtName") ?? ""
+        let short = AnswerEngine.shortDistrictName(saved)
+        return short.isEmpty ? "Schools" : "\(short) schools"
+    }
+
     static func body(for alert: ClosingAlert, schoolName: String?) -> String {
         let when = Self.friendlyDay(alert.date)
-        let who = schoolName ?? "Edison schools"
+        let who = schoolName ?? districtLabel
         switch alert.kind {
         case "closed":
             return "\(who) are closed \(when). Tap for details."

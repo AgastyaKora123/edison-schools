@@ -86,6 +86,15 @@ final class KnowledgeStore: ObservableObject {
             return
         }
 
+        // A district the parent chose beats everything else, including the
+        // one the app shipped with. It was chosen on purpose.
+        if chosenDistrictOrgId != 0,
+           let saved = try? Data(contentsOf: districtCacheURL),
+           let p = try? decoder.decode(KnowledgePack.self, from: saved) {
+            pack = p
+            return
+        }
+
         // Prefer a downloaded pack, but only if it parses and is newer.
         if let cached = try? Data(contentsOf: cacheURL),
            let p = try? decoder.decode(KnowledgePack.self, from: cached),
@@ -109,6 +118,82 @@ final class KnowledgeStore: ObservableObject {
             loadError = "Could not read the bundled knowledge pack: \(error.localizedDescription)"
             return nil
         }
+    }
+
+    // MARK: - Choosing a district
+
+    /// Only ever one district's calendar is kept. A parent has one set of
+    /// children at one set of schools, and keeping every district they ever
+    /// looked at would be a few megabytes of somebody else's calendar.
+    private var districtCacheURL: URL {
+        let dir = FileManager.default.urls(for: .applicationSupportDirectory, in: .userDomainMask)[0]
+        try? FileManager.default.createDirectory(at: dir, withIntermediateDirectories: true)
+        return dir.appendingPathComponent("district-pack.json")
+    }
+
+    var chosenDistrictOrgId: Int {
+        UserDefaults.standard.integer(forKey: "districtOrgId")
+    }
+
+    var chosenDistrictName: String {
+        UserDefaults.standard.string(forKey: "districtName") ?? ""
+    }
+
+    /// True when this pack was read off the district's own calendar rather
+    /// than prepared on a desktop, so the screens that show bell times and
+    /// office numbers can say they are not available instead of showing
+    /// nothing and looking broken.
+    var packWasBuiltInApp: Bool { pack?.builtInApp == true }
+
+    @Published private(set) var buildStep: String?
+    @Published private(set) var isBuildingDistrict = false
+
+    /// Reads a district's published calendar and answers from it from now on.
+    @discardableResult
+    func useDistrict(_ ref: DistrictRef) async -> String? {
+        isBuildingDistrict = true
+        buildStep = "Starting"
+        defer { isBuildingDistrict = false; buildStep = nil }
+
+        let info = DistrictBuilder.Info(orgId: ref.o,
+                                        name: ref.name,
+                                        shortName: "",
+                                        url: ref.siteURL,
+                                        timeZone: "")
+        do {
+            let built = try await DistrictBuilder.build(info: info, rules: rules) { [weak self] step in
+                Task { @MainActor in self?.buildStep = step }
+            }
+
+            // Written before it is adopted, so a crash here cannot leave the
+            // app pointing at a district whose calendar it never saved.
+            let data = try JSONEncoder().encode(built)
+            try data.write(to: districtCacheURL, options: .atomic)
+
+            UserDefaults.standard.set(ref.o, forKey: "districtOrgId")
+            UserDefaults.standard.set(ref.name, forKey: "districtName")
+            // The old district's school is meaningless here.
+            UserDefaults.standard.removeObject(forKey: "defaultSchoolId")
+
+            pack = built
+            liveAlerts = []
+            lastAlertCheck = nil
+            loadError = nil
+            return nil
+        } catch {
+            return error.localizedDescription
+        }
+    }
+
+    /// Back to the district the app shipped with.
+    func clearDistrict() {
+        UserDefaults.standard.removeObject(forKey: "districtOrgId")
+        UserDefaults.standard.removeObject(forKey: "districtName")
+        UserDefaults.standard.removeObject(forKey: "defaultSchoolId")
+        try? FileManager.default.removeItem(at: districtCacheURL)
+        liveAlerts = []
+        lastAlertCheck = nil
+        load()
     }
 
     // MARK: - Refresh

@@ -42,7 +42,7 @@ struct ContentView: View {
                     transcript
                 }
             }
-            .navigationTitle("Edison Parent")
+            .navigationTitle(store.pack?.district.name ?? "School Answers")
             .navigationBarTitleDisplayMode(.inline)
             .toolbar {
                 ToolbarItem(placement: .topBarTrailing) {
@@ -99,7 +99,7 @@ struct ContentView: View {
 
     private var welcome: some View {
         VStack(alignment: .leading, spacing: 14) {
-            Text("Ask about Edison schools")
+            Text("Ask about (store.pack.map { AnswerEngine.shortDistrictName($0.district.name) }.flatMap { $0.isEmpty ? nil : $0 + " schools" } ?? "your schools")")
                 .font(.title3.bold())
             Text("Hours, closings, early dismissals, breaks, absences, buses, meals and policies - answered from the district's own published information, on your phone, with no account.")
                 .font(.subheadline)

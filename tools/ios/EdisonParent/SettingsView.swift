@@ -19,6 +19,24 @@ struct SettingsView: View {
     @AppStorage("defaultSchoolId") private var defaultSchoolId = ""
     @AppStorage("refreshURL") private var refreshURL = ""
     @State private var notifyStatus: UNAuthorizationStatus = .notDetermined
+    @State private var showDistrictPicker = false
+
+    /// The district's own website, calendar and feed, from the information
+    /// file. Empty entries are dropped rather than shown as dead links.
+    private var districtLinks: [(String, String)] {
+        guard let d = store.pack?.district else { return [] }
+        let site = d.url.replacingOccurrences(of: "/+$", with: "", options: .regularExpression)
+        let pages = d.pages ?? [:]
+        var out: [(String, String)] = []
+        if !site.isEmpty { out.append((d.name, site)) }
+        if let c = pages["calendar"] ?? (site.isEmpty ? nil : site + "/events/"), !c.isEmpty {
+            out.append(("District calendar", c))
+        }
+        if let f = pages["feed"] ?? (site.isEmpty ? nil : site + "/live-feed/"), !f.isEmpty {
+            out.append(("Closings and announcements", f))
+        }
+        return out
+    }
 
     /// A named type rather than a tuple: Swift has no key paths into tuple
     /// elements, so `ForEach(..., id: \.0)` would not compile.
@@ -58,6 +76,26 @@ struct SettingsView: View {
                     Text("My school")
                 } footer: {
                     Text("Used when a question doesn't name a school - so \"is there school tomorrow\" answers for yours. Naming a school in the question always wins.")
+                }
+
+                Section {
+                    Button {
+                        showDistrictPicker = true
+                    } label: {
+                        HStack {
+                            Text("Change district")
+                            Spacer()
+                            Text(store.chosenDistrictName.isEmpty
+                                 ? (store.pack?.district.name ?? "")
+                                 : store.chosenDistrictName)
+                                .foregroundStyle(.secondary)
+                                .multilineTextAlignment(.trailing)
+                        }
+                    }
+                } footer: {
+                    Text(store.packWasBuiltInApp
+                         ? "Read from this district's own published calendar. Bell times and office numbers are not published that way, so the app will say it doesn't know them."
+                         : "Works for any district whose website runs on the same system.")
                 }
 
                 if let pack = store.pack {
@@ -141,12 +179,13 @@ struct SettingsView: View {
                 }
 
                 Section {
-                    Link("Edison Township Public Schools",
-                         destination: URL(string: "https://www.edison.k12.nj.us")!)
-                    Link("District calendar",
-                         destination: URL(string: "https://www.edison.k12.nj.us/page/district-yearly-calendar/")!)
-                    Link("School closing / delayed opening",
-                         destination: URL(string: "https://www.edison.k12.nj.us/page/school-closingdelayed-opening-information/")!)
+                    // These come from the information file. Written in, they
+                    // sent a parent in another state to Edison's website.
+                    ForEach(districtLinks, id: \.0) { label, address in
+                        if let u = URL(string: address) {
+                            Link(label, destination: u)
+                        }
+                    }
                 } header: {
                     Text("On the district website")
                 } footer: {
@@ -160,6 +199,7 @@ struct SettingsView: View {
                 }
             }
             .task { notifyStatus = await ClosingNotifier.authorizationStatus() }
+            .sheet(isPresented: $showDistrictPicker) { DistrictPickerView().environmentObject(store) }
         }
     }
 
