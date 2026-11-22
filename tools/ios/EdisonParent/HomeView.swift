@@ -19,6 +19,7 @@ import SwiftUI
 struct HomeView: View {
 
     @EnvironmentObject private var store: KnowledgeStore
+    @EnvironmentObject private var practice: PracticeStore
     @AppStorage("defaultSchoolId") private var defaultSchoolId = ""
 
     @State private var showSettings = false
@@ -188,12 +189,27 @@ struct HomeView: View {
                      title: "Calendar",
                      detail: "The month, and where the days off fall")
             }
+            NavigationLink { PracticeView().environmentObject(practice) } label: {
+                card(icon: "rectangle.stack",
+                     title: "Practice",
+                     detail: practiceDetail,
+                     badge: practice.dueCount())
+            }
         }
         .buttonStyle(.plain)
         .padding(.top, 2)
     }
 
-    private func card(icon: String, title: String, detail: String) -> some View {
+    private var practiceDetail: String {
+        let decks = practice.decks.count
+        if decks == 0 { return "Turn your notes into questions" }
+        let due = practice.dueCount()
+        return due == 0
+            ? "Nothing due - come back tomorrow"
+            : "\(due) card\(due == 1 ? "" : "s") waiting"
+    }
+
+    private func card(icon: String, title: String, detail: String, badge: Int = 0) -> some View {
         HStack(spacing: 15) {
             Image(systemName: icon)
                 .font(.title3)
@@ -207,6 +223,13 @@ struct HomeView: View {
                     .fixedSize(horizontal: false, vertical: true)
             }
             Spacer()
+            if badge > 0 {
+                Text("\(badge)")
+                    .font(.caption.weight(.bold)).monospacedDigit()
+                    .padding(.horizontal, 8).padding(.vertical, 3)
+                    .background(Capsule().fill(Color.accentColor))
+                    .foregroundStyle(.white)
+            }
             Image(systemName: "chevron.right").font(.caption.weight(.semibold))
                 .foregroundStyle(.tertiary)
         }
@@ -290,11 +313,16 @@ struct HomeView: View {
             Text(shortDate(date))
                 .font(.subheadline.weight(.semibold))
                 .monospacedDigit()
-                .frame(width: 86, alignment: .leading)
+                .lineLimit(1)
+                .fixedSize(horizontal: true, vertical: false)
+                .frame(width: 100, alignment: .leading)
 
             VStack(alignment: .leading, spacing: 1) {
                 Text(verdict(for: info.kind)).font(.subheadline)
-                if !info.reason.isEmpty {
+                // Districts often title an early dismissal "Early Dismissal",
+                // which under a line already reading "Early dismissal" is
+                // just the same words twice.
+                if !info.reason.isEmpty, !saysTheSameThing(info.reason, verdict(for: info.kind)) {
                     Text(info.reason)
                         .font(.caption)
                         .foregroundStyle(.secondary)
@@ -305,6 +333,16 @@ struct HomeView: View {
         }
         .padding(.vertical, 11)
         .padding(.horizontal, 17)
+    }
+
+    /// Whether a calendar entry's title is really just the verdict again.
+    /// Compared without case, spaces or punctuation, so "Early Dismissal"
+    /// and "early dismissal." both count.
+    private func saysTheSameThing(_ a: String, _ b: String) -> Bool {
+        func bare(_ s: String) -> String {
+            s.lowercased().filter { $0.isLetter || $0.isNumber }
+        }
+        return bare(a) == bare(b)
     }
 
     private func shortDate(_ d: Date) -> String {

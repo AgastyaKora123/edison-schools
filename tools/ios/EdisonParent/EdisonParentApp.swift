@@ -9,6 +9,7 @@ import SwiftUI
 struct EdisonParentApp: App {
 
     @StateObject private var store = KnowledgeStore()
+    @StateObject private var practice = PracticeStore()
     @Environment(\.scenePhase) private var scenePhase
 
     init() {
@@ -29,9 +30,11 @@ struct EdisonParentApp: App {
         WindowGroup {
             HomeView()
                 .environmentObject(store)
+                .environmentObject(practice)
                 .task {
                     Self.sharedBox.store = store
                     store.load()
+                    practice.load()
                     // Only reaches the network if a refresh URL is set.
                     await store.refresh()
                     // Always cheap, and the point of the whole alert layer.
