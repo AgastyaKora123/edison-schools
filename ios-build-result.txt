@@ -1,10 +1,10 @@
-iPhone app build - 2026-11-22 22:18 UTC
+iPhone app build - 2026-11-22 22:33 UTC
 Xcode: Xcode 26.6
 
 COMPILED: yes
 
 --- anything the compiler objected to ---
-2026-11-22 22:10:24.928 appintentsmetadataprocessor[12246:36616] warning: Metadata extraction skipped. No AppIntents.framework dependency found.
+2026-11-22 22:24:27.545 appintentsmetadataprocessor[2018:9941] warning: Metadata extraction skipped. No AppIntents.framework dependency found.
 
 --- checks that failed ---
 (none)
@@ -13,13 +13,13 @@ COMPILED: yes
 yes
 
 --- did the 100-question contract actually run? ---
-Test Case '-[EdisonParentTests.AnswerEngineTests testQuestionContract]' passed (4.415 seconds).
+Test Case '-[EdisonParentTests.AnswerEngineTests testQuestionContract]' passed (5.009 seconds).
 
 --- App Store screenshot ---
 captured 1206x2622 on iPhone 17 Pro
 on the site at store/screenshots-iphone/
 
 --- totals ---
-	 Executed 13 tests, with 0 failures (0 unexpected) in 0.036 (0.054) seconds
-	 Executed 30 tests, with 0 failures (0 unexpected) in 15.698 (18.424) seconds
-	 Executed 30 tests, with 0 failures (0 unexpected) in 15.698 (18.429) seconds
+	 Executed 6 tests, with 0 failures (0 unexpected) in 0.011 (2.085) seconds
+	 Executed 42 tests, with 0 failures (0 unexpected) in 17.059 (19.699) seconds
+	 Executed 42 tests, with 0 failures (0 unexpected) in 17.059 (19.911) seconds
