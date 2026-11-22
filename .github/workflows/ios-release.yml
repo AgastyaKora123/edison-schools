@@ -91,21 +91,29 @@ jobs:
           BUILD_NUMBER=${GITHUB_RUN_NUMBER}
           echo "Version $VERSION, build $BUILD_NUMBER"
 
-          # -allowProvisioningUpdates lets Xcode create the certificate and
-          # profile itself using the API key, which is the whole reason this
-          # works without a Mac to click through Xcode's signing UI.
+          # Archive WITHOUT signing, and sign at the export step instead.
+          #
+          # This is not a shortcut, it is the fix for a real wall. Signing
+          # during archive makes Xcode ask Apple for an iOS App DEVELOPMENT
+          # profile, and Apple refuses to issue one to a team with no
+          # registered devices: "Your team has no devices from which to
+          # generate a provisioning profile." The owner of this project has
+          # no iPhone to register, so that door stays shut.
+          #
+          # App Store DISTRIBUTION profiles have no such requirement - they
+          # are not tied to devices - and the export step below asks for one
+          # of those. So: build it unsigned, then sign it for the App Store
+          # on the way out.
           xcodebuild archive \
             -project EdisonParent.xcodeproj \
             -scheme EdisonParent \
             -configuration Release \
             -destination 'generic/platform=iOS' \
             -archivePath "$RUNNER_TEMP/SchoolAnswers.xcarchive" \
-            -allowProvisioningUpdates \
-            -authenticationKeyPath "$RUNNER_TEMP/private_keys/AuthKey.p8" \
-            -authenticationKeyID "$KEY_ID" \
-            -authenticationKeyIssuerID "$ISSUER_ID" \
             DEVELOPMENT_TEAM="$TEAM_ID" \
-            CODE_SIGN_STYLE=Automatic \
+            CODE_SIGNING_ALLOWED=NO \
+            CODE_SIGNING_REQUIRED=NO \
+            CODE_SIGN_IDENTITY="" \
             MARKETING_VERSION="$VERSION" \
             CURRENT_PROJECT_VERSION="$BUILD_NUMBER" \
             2>&1 | tee archive.log
