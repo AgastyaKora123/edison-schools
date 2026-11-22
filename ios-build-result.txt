@@ -1,11 +1,10 @@
-iPhone app build - 2026-11-22 05:52 UTC
+iPhone app build - 2026-11-22 05:58 UTC
 Xcode: Xcode 26.6
 
-COMPILED: no
+COMPILED: yes
 
 --- anything the compiler objected to ---
-EdisonParent/ContentView.swift:102:134: error: expected ',' separator
-EdisonParent/ContentView.swift:102:134: error: Expected ',' separator
+2026-11-22 05:54:34.854 appintentsmetadataprocessor[19820:53372] warning: Metadata extraction skipped. No AppIntents.framework dependency found.
 
 --- checks that failed ---
 (none)
@@ -14,5 +13,8 @@ EdisonParent/ContentView.swift:102:134: error: Expected ',' separator
 yes
 
 --- did the 100-question contract actually run? ---
-NO - it never ran. Everything above is about other checks.
+Test Case '-[EdisonParentTests.AnswerEngineTests testQuestionContract]' passed (5.439 seconds).
 --- totals ---
+	 Executed 13 tests, with 0 failures (0 unexpected) in 0.079 (0.091) seconds
+	 Executed 29 tests, with 0 failures (0 unexpected) in 19.164 (20.117) seconds
+	 Executed 29 tests, with 0 failures (0 unexpected) in 19.164 (20.119) seconds
