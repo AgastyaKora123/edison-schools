@@ -267,7 +267,7 @@
 				INFOPLIST_KEY_UIBackgroundModes = fetch;
 				INFOPLIST_KEY_UISupportedInterfaceOrientations_iPad = "UIInterfaceOrientationPortrait UIInterfaceOrientationPortraitUpsideDown UIInterfaceOrientationLandscapeLeft UIInterfaceOrientationLandscapeRight";
 				INFOPLIST_KEY_UISupportedInterfaceOrientations_iPhone = "UIInterfaceOrientationPortrait";
-				INFOPLIST_KEY_CFBundleDisplayName = "School Answers";
+				INFOPLIST_KEY_CFBundleDisplayName = "Schoolo";
 				INFOPLIST_KEY_BGTaskSchedulerPermittedIdentifiers = "io.github.agastyakora123.schoolanswers.checkClosings";
 				LD_RUNPATH_SEARCH_PATHS = (
 					"$(inherited)",
@@ -297,7 +297,7 @@
 				INFOPLIST_KEY_UIBackgroundModes = fetch;
 				INFOPLIST_KEY_UISupportedInterfaceOrientations_iPad = "UIInterfaceOrientationPortrait UIInterfaceOrientationPortraitUpsideDown UIInterfaceOrientationLandscapeLeft UIInterfaceOrientationLandscapeRight";
 				INFOPLIST_KEY_UISupportedInterfaceOrientations_iPhone = "UIInterfaceOrientationPortrait";
-				INFOPLIST_KEY_CFBundleDisplayName = "School Answers";
+				INFOPLIST_KEY_CFBundleDisplayName = "Schoolo";
 				INFOPLIST_KEY_BGTaskSchedulerPermittedIdentifiers = "io.github.agastyakora123.schoolanswers.checkClosings";
 				LD_RUNPATH_SEARCH_PATHS = (
 					"$(inherited)",
