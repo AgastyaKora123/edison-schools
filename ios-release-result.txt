@@ -1,0 +1,16 @@
+Send to Apple - 2026-11-22 16:53 UTC
+Version 1.0, build 1
+
+SIGNED: no
+SENT TO APPLE: no
+
+--- what went wrong, if anything ---
+    /Applications/Xcode_16.4.app/Contents/Developer/usr/bin/xcodebuild archive -project EdisonParent.xcodeproj -scheme EdisonParent -configuration Release -destination generic/platform=iOS -archivePath /Users/runner/work/_temp/SchoolAnswers.xcarchive -allowProvisioningUpdates -authenticationKeyPath /Users/runner/work/_temp/private_keys/AuthKey.p8 -authenticationKeyID DK39WGH45L -authenticationKeyIssuerID 2fc56c9f-e06a-4cca-90c5-53fe23ecc105 DEVELOPMENT_TEAM=76DMCZ58U7 CODE_SIGN_STYLE=Automatic MARKETING_VERSION=1.0 CURRENT_PROJECT_VERSION=1
+EdisonParent.xcodeproj: error: Communication with Apple failed: Your team has no devices from which to generate a provisioning profile. Connect a device to use or manually add device IDs in Certificates, Identifiers & Profiles. https://developer.apple.com/account/ (in target 'EdisonParent' from project 'EdisonParent')
+EdisonParent.xcodeproj: error: No profiles for 'io.github.agastyakora123.schoolanswers' were found: Xcode couldn't find any iOS App Development provisioning profiles matching 'io.github.agastyakora123.schoolanswers'. (in target 'EdisonParent' from project 'EdisonParent')
+GatherProvisioningInputs
+
+--- next ---
+If it was sent, the build appears in App Store Connect under
+the app, in TestFlight, after Apple finishes processing it.
+That usually takes 5 to 30 minutes and you get an email.
