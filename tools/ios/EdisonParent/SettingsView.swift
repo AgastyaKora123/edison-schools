@@ -35,7 +35,7 @@ struct SettingsView: View {
         return order.compactMap { lvl in
             guard let list = groups[lvl], !list.isEmpty else { return nil }
             return LevelGroup(level: lvl,
-                              label: AnswerEngine.levelLabel(lvl),
+                              label: AnswerEngine.levelLabel(lvl, labels: store.pack?.district.levelLabels),
                               schools: list.sorted { $0.name < $1.name })
         }
     }

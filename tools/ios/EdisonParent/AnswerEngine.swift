@@ -674,9 +674,14 @@ struct AnswerEngine {
             .joined(separator: " ")
     }
 
+    /// Static form, for views that hold a pack but not an engine.
+    static func levelLabel(_ level: String, labels: [String: String]?) -> String {
+        if let own = labels?[level], !own.isEmpty { return own }
+        return genericLevelLabels[level] ?? titleCase(level)
+    }
+
     func levelLabel(_ level: String) -> String {
-        if let own = pack.district.levelLabels?[level], !own.isEmpty { return own }
-        return Self.genericLevelLabels[level] ?? Self.titleCase(level)
+        Self.levelLabel(level, labels: pack.district.levelLabels)
     }
 
     func bellLines(_ ctx: Context, dayKind: DayKind) -> String {
