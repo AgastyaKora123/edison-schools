@@ -97,7 +97,7 @@ struct CalendarView: View {
 
             Spacer()
             Text(monthTitle)
-                .font(.headline)
+                .font(.system(.title3, design: .serif).weight(.semibold))
                 .monospacedDigit()
             Spacer()
 
@@ -142,29 +142,32 @@ struct CalendarView: View {
         let isToday = cal.isDateInToday(day)
         let isSelected = selected.map { cal.isDate($0, inSameDayAs: day) } ?? false
 
+        // A marked day is filled rather than dotted. A six-pixel dot is the
+        // sort of thing you have to lean in for, and the whole point of a
+        // month view is reading it at arm's length.
+        let marked = colour(for: kind) != .clear
+
         return Button {
             selected = isSelected ? nil : day
         } label: {
-            VStack(spacing: 3) {
-                Text("\(cal.component(.day, from: day))")
-                    .font(.callout.weight(isToday ? .bold : .regular))
-                    .monospacedDigit()
-                Circle()
-                    .fill(colour(for: kind))
-                    .frame(width: 6, height: 6)
-                    .opacity(colour(for: kind) == .clear ? 0 : 1)
-            }
-            .frame(maxWidth: .infinity)
-            .frame(height: 46)
-            .background(
-                RoundedRectangle(cornerRadius: 8)
-                    .fill(isSelected ? Color.accentColor.opacity(0.18) : Color.clear)
-            )
-            .overlay(
-                RoundedRectangle(cornerRadius: 8)
-                    .stroke(isToday ? Color.accentColor : .clear, lineWidth: 1.5)
-            )
-            .foregroundStyle(kind == .weekend ? Color.secondary : Color.primary)
+            Text("\(cal.component(.day, from: day))")
+                .font(.system(.callout, design: .rounded)
+                        .weight(marked || isToday ? .semibold : .regular))
+                .monospacedDigit()
+                .frame(maxWidth: .infinity)
+                .frame(height: 46)
+                .background(
+                    RoundedRectangle(cornerRadius: 11, style: .continuous)
+                        .fill(marked ? colour(for: kind) : Color.clear)
+                )
+                .overlay(
+                    RoundedRectangle(cornerRadius: 11, style: .continuous)
+                        .stroke(isSelected ? Color.primary.opacity(0.55)
+                                : isToday ? Color.accentColor : .clear,
+                                lineWidth: isSelected ? 2 : 1.6)
+                )
+                .foregroundStyle(marked ? Color.white
+                                 : kind == .weekend ? Color.secondary : Color.primary)
         }
         .buttonStyle(.plain)
         .accessibilityLabel(accessibilityText(day, kind: kind, info: info))
@@ -174,9 +177,9 @@ struct CalendarView: View {
     /// where everything is coloured says nothing.
     private func colour(for kind: DayKind) -> Color {
         switch kind {
-        case .closed:         return .red
-        case .earlyDismissal: return .orange
-        case .delayedOpening: return .yellow
+        case .closed:         return Color(red: 0.631, green: 0.192, blue: 0.161)
+        case .earlyDismissal: return Color(red: 0.698, green: 0.412, blue: 0.086)
+        case .delayedOpening: return Color(red: 0.627, green: 0.498, blue: 0.075)
         default:              return .clear
         }
     }
@@ -235,13 +238,16 @@ struct CalendarView: View {
     private var legend: some View {
         HStack(spacing: 14) {
             ForEach([DayKind.closed, .earlyDismissal, .delayedOpening], id: \.self) { k in
-                HStack(spacing: 5) {
-                    Circle().fill(colour(for: k)).frame(width: 6, height: 6)
+                HStack(spacing: 6) {
+                    RoundedRectangle(cornerRadius: 3, style: .continuous)
+                        .fill(colour(for: k))
+                        .frame(width: 11, height: 11)
                     Text(label(for: k)).font(.caption2).foregroundStyle(.secondary)
                 }
             }
         }
         .frame(maxWidth: .infinity)
+        .padding(.top, 4)
     }
 
     // MARK: - Dates
