@@ -42,7 +42,7 @@ struct ContentView: View {
                     transcript
                 }
             }
-            .navigationTitle(store.pack?.district.name ?? "School Answers")
+            .navigationTitle(districtTitle)
             .navigationBarTitleDisplayMode(.inline)
             .toolbar {
                 ToolbarItem(placement: .topBarTrailing) {
@@ -97,9 +97,24 @@ struct ContentView: View {
         }
     }
 
+    /// The short form, because "Edison Township Public Schools" does not fit
+    /// across the top of a phone and is truncated to something worse.
+    private var districtTitle: String {
+        guard let name = store.pack?.district.name else { return "School Answers" }
+        let short = AnswerEngine.shortDistrictName(name)
+        return short.isEmpty ? "School Answers" : short
+    }
+
+    /// "Edison schools", or "your schools" when no district is loaded yet.
+    private var schoolsLabel: String {
+        guard let name = store.pack?.district.name else { return "your schools" }
+        let short = AnswerEngine.shortDistrictName(name)
+        return short.isEmpty ? "your schools" : "\(short) schools"
+    }
+
     private var welcome: some View {
         VStack(alignment: .leading, spacing: 14) {
-            Text("Ask about (store.pack.map { AnswerEngine.shortDistrictName($0.district.name) }.flatMap { $0.isEmpty ? nil : $0 + " schools" } ?? "your schools")")
+            Text("Ask about \(schoolsLabel)")
                 .font(.title3.bold())
             Text("Hours, closings, early dismissals, breaks, absences, buses, meals and policies - answered from the district's own published information, on your phone, with no account.")
                 .font(.subheadline)
