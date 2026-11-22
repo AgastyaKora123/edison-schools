@@ -1,12 +1,13 @@
-iPhone app build - 2026-11-22 05:28 UTC
+iPhone app build - 2026-11-22 05:37 UTC
 Xcode: Xcode 26.6
 
-COMPILED: no
+COMPILED: yes
 
 --- anything the compiler objected to ---
-EdisonParent/SettingsView.swift:38:38: error: instance member 'levelLabel' cannot be used on type 'AnswerEngine'; did you mean to use a value of this type instead?
+2026-11-22 05:33:49.561 appintentsmetadataprocessor[3216:13918] warning: Metadata extraction skipped. No AppIntents.framework dependency found.
 
 --- checks that failed ---
 (none)
 
 --- totals ---
+	 Executed 9 tests, with 0 failures (0 unexpected) in 0.263 (0.268) seconds
