@@ -244,6 +244,15 @@ struct Rules: Codable {
     var alerts: AlertRules?
     var disclaimer: String?
 
+    /// Named days that are not on any school calendar but that people ask
+    /// about anyway - "is there school on christmas eve". Month and day.
+    var holidays: [String: [Int]]?
+
+    /// Wording that means "some particular day" without naming one. If the
+    /// question has one of these and no date could be worked out, saying so
+    /// beats confidently answering about today.
+    var dayHints: [String]?
+
     /// How to read closings out of the district's live feed. Shared verbatim
     /// with engine/Alerts.ps1 so both parsers behave identically.
     struct AlertRules: Codable {

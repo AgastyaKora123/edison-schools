@@ -378,6 +378,20 @@ struct AnswerEngine {
             }
         }
 
+        // 5b. named holidays. Longest name first, so "christmas eve" is not
+        //     swallowed by "christmas". These are days nobody puts on a
+        //     school calendar - the calendar has "Winter Recess", not
+        //     "Christmas Eve" - but which parents ask about by name. Without
+        //     this, "is there school on christmas eve" found no date at all
+        //     and was answered about today.
+        for n in (rules.holidays ?? [:]).keys.sorted(by: { $0.count > $1.count })
+        where Self.containsPhrase(norm, n) {
+            guard let md = rules.holidays?[n], md.count >= 2 else { continue }
+            if let d = resolveMonthDay(month: md[0], day: md[1], year: nil, today: today) {
+                return DateSlot(start: d, end: d, isRange: false, phrase: n)
+            }
+        }
+
         // 6. weekday names. "next friday" = first Friday strictly after today;
         //    bare / "this" friday = first Friday from today onward.
         for n in rules.weekdays.keys.sorted(by: { $0.count > $1.count }) where Self.containsPhrase(norm, n) {
@@ -747,7 +761,24 @@ struct AnswerEngine {
 
     // MARK: - Resolver: school status
 
+    /// The question points at some particular day - "on", "the day of", a
+    /// holiday, a break - but no date could be worked out of it.
+    func asksAboutSomeOtherDay(_ norm: String) -> Bool {
+        (rules.dayHints ?? []).contains { norm.contains($0) }
+    }
+
     func resolveSchoolStatus(_ ctx: Context) -> Answer {
+        // Falling back to today here is how "is there school on some random
+        // day" got answered "Yes - schools are open on Monday, November 23."
+        // Confident, specific, and about a day nobody asked about. Saying
+        // plainly that the day was not understood is worth more.
+        if ctx.date == nil, asksAboutSomeOtherDay(ctx.norm) {
+            return make("I'm not sure which day you mean. Try naming the date - "
+                        + "\"is there school on December 24\" - or ask about today or tomorrow.",
+                        intent: "school_status", kind: "unclear_date",
+                        sources: [links.calendar], confidence: 0.2)
+        }
+
         let slot = ctx.date ?? DateSlot(start: ctx.today, end: ctx.today, isRange: false, phrase: "today")
         let label = ctx.school?.name ?? allSchoolsLabel
         let isAre = ctx.school != nil ? "is" : "are"
@@ -1028,6 +1059,13 @@ struct AnswerEngine {
                         intent: "break_dates", kind: "none",
                         sources: [links.calendar], confidence: 0.4)
         }
+
+        // A break closes the whole district, so the district's own entry is
+        // the answer. Without this, one school's "FDR Thanksgiving Feast" or
+        // "Single Session Day- Spring Break" outranks the actual recess and
+        // the parent is told the wrong week.
+        let districtOnly = cands.filter { $0.scope == "district" }
+        if !districtOnly.isEmpty { cands = districtOnly }
 
         // Prefer the next upcoming one; fall back to the most recent.
         let future = cands
