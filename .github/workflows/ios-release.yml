@@ -1,0 +1,217 @@
+# Signs the iPhone app and sends it to Apple.
+#
+# Deliberately separate from ios-build.yml, and deliberately manual. The build
+# workflow runs on every change and must never be able to publish; this one
+# publishes and must never run on its own. It has no push trigger at all - a
+# person presses a button.
+#
+# It needs four things, all of which live in this repository's own secrets and
+# none of which anyone has to send anywhere:
+#
+#   APPLE_API_KEY_ID        the key's ID, e.g. 2X9ABC3DEF
+#   APPLE_API_ISSUER_ID     the issuer ID, a long id with dashes
+#   APPLE_API_PRIVATE_KEY   the whole contents of the .p8 file Apple gives you
+#   APPLE_TEAM_ID           the team ID, e.g. A1B2C3D4E5
+#
+# Only the third is actually secret; the others are reference numbers. They all
+# go in the same place because that is simpler to explain and means nothing has
+# to travel through a chat window.
+#
+# Settings > Secrets and variables > Actions > New repository secret.
+
+name: Send the iPhone app to Apple
+
+on:
+  workflow_dispatch:
+    inputs:
+      version:
+        description: "Version shown on the App Store, e.g. 1.0"
+        required: true
+        default: "1.0"
+
+permissions:
+  contents: write
+
+concurrency:
+  group: ios-release
+  cancel-in-progress: false
+
+jobs:
+  release:
+    runs-on: macos-15
+    timeout-minutes: 60
+
+    steps:
+      - name: Get the project
+        uses: actions/checkout@v4
+
+      - name: Check the secrets are all there
+        env:
+          KEY_ID: ${{ secrets.APPLE_API_KEY_ID }}
+          ISSUER_ID: ${{ secrets.APPLE_API_ISSUER_ID }}
+          PRIVATE_KEY: ${{ secrets.APPLE_API_PRIVATE_KEY }}
+          TEAM_ID: ${{ secrets.APPLE_TEAM_ID }}
+        run: |
+          # Fail here, clearly, rather than fifteen minutes later inside
+          # xcodebuild with a message about provisioning profiles.
+          MISSING=""
+          [ -z "$KEY_ID" ] && MISSING="$MISSING APPLE_API_KEY_ID"
+          [ -z "$ISSUER_ID" ] && MISSING="$MISSING APPLE_API_ISSUER_ID"
+          [ -z "$PRIVATE_KEY" ] && MISSING="$MISSING APPLE_API_PRIVATE_KEY"
+          [ -z "$TEAM_ID" ] && MISSING="$MISSING APPLE_TEAM_ID"
+          if [ -n "$MISSING" ]; then
+            echo "These repository secrets are not set:$MISSING"
+            echo "Settings > Secrets and variables > Actions > New repository secret."
+            exit 1
+          fi
+          echo "All four are set."
+
+      - name: Put the key somewhere Xcode can read it
+        env:
+          PRIVATE_KEY: ${{ secrets.APPLE_API_PRIVATE_KEY }}
+        run: |
+          # Not in the project folder: a key inside the working tree can be
+          # committed by accident, and this one signs everything.
+          mkdir -p "$RUNNER_TEMP/private_keys"
+          printf '%s\n' "$PRIVATE_KEY" > "$RUNNER_TEMP/private_keys/AuthKey.p8"
+          chmod 600 "$RUNNER_TEMP/private_keys/AuthKey.p8"
+          echo "Key written."
+
+      - name: Build and sign it
+        working-directory: tools/ios
+        env:
+          KEY_ID: ${{ secrets.APPLE_API_KEY_ID }}
+          ISSUER_ID: ${{ secrets.APPLE_API_ISSUER_ID }}
+          TEAM_ID: ${{ secrets.APPLE_TEAM_ID }}
+          VERSION: ${{ inputs.version }}
+        run: |
+          set -o pipefail
+          # Apple refuses an upload whose build number it has seen before, so
+          # the run number becomes the build number. It only ever goes up.
+          BUILD_NUMBER=${GITHUB_RUN_NUMBER}
+          echo "Version $VERSION, build $BUILD_NUMBER"
+
+          # -allowProvisioningUpdates lets Xcode create the certificate and
+          # profile itself using the API key, which is the whole reason this
+          # works without a Mac to click through Xcode's signing UI.
+          xcodebuild archive \
+            -project EdisonParent.xcodeproj \
+            -scheme EdisonParent \
+            -configuration Release \
+            -destination 'generic/platform=iOS' \
+            -archivePath "$RUNNER_TEMP/SchoolAnswers.xcarchive" \
+            -allowProvisioningUpdates \
+            -authenticationKeyPath "$RUNNER_TEMP/private_keys/AuthKey.p8" \
+            -authenticationKeyID "$KEY_ID" \
+            -authenticationKeyIssuerID "$ISSUER_ID" \
+            DEVELOPMENT_TEAM="$TEAM_ID" \
+            CODE_SIGN_STYLE=Automatic \
+            MARKETING_VERSION="$VERSION" \
+            CURRENT_PROJECT_VERSION="$BUILD_NUMBER" \
+            2>&1 | tee archive.log
+
+      - name: Send it to Apple
+        working-directory: tools/ios
+        env:
+          KEY_ID: ${{ secrets.APPLE_API_KEY_ID }}
+          ISSUER_ID: ${{ secrets.APPLE_API_ISSUER_ID }}
+          TEAM_ID: ${{ secrets.APPLE_TEAM_ID }}
+        run: |
+          set -o pipefail
+          # destination=upload makes this one step do the export AND the
+          # upload, so there is no separate altool call and no second place
+          # for the credentials to be wrong.
+          cat > "$RUNNER_TEMP/ExportOptions.plist" <<PLIST
+          <?xml version="1.0" encoding="UTF-8"?>
+          <!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
+          <plist version="1.0">
+          <dict>
+            <key>method</key><string>app-store-connect</string>
+            <key>destination</key><string>upload</string>
+            <key>teamID</key><string>${TEAM_ID}</string>
+            <key>signingStyle</key><string>automatic</string>
+            <key>uploadSymbols</key><true/>
+            <key>manageAppVersionAndBuildNumber</key><false/>
+          </dict>
+          </plist>
+          PLIST
+
+          xcodebuild -exportArchive \
+            -archivePath "$RUNNER_TEMP/SchoolAnswers.xcarchive" \
+            -exportOptionsPlist "$RUNNER_TEMP/ExportOptions.plist" \
+            -exportPath "$RUNNER_TEMP/export" \
+            -allowProvisioningUpdates \
+            -authenticationKeyPath "$RUNNER_TEMP/private_keys/AuthKey.p8" \
+            -authenticationKeyID "$KEY_ID" \
+            -authenticationKeyIssuerID "$ISSUER_ID" \
+            2>&1 | tee upload.log
+
+      - name: Shred the key
+        if: always()
+        run: |
+          rm -f "$RUNNER_TEMP/private_keys/AuthKey.p8"
+          echo "Key removed from the runner."
+
+      - name: Write down what happened
+        if: always()
+        working-directory: tools/ios
+        run: |
+          OUT=ios-release-result.txt
+          {
+            echo "Send to Apple - $(date -u '+%Y-%m-%d %H:%M UTC')"
+            echo "Version ${{ inputs.version }}, build ${GITHUB_RUN_NUMBER}"
+            echo ""
+            if grep -q "ARCHIVE SUCCEEDED" archive.log 2>/dev/null; then
+              echo "SIGNED: yes"
+            else
+              echo "SIGNED: no"
+            fi
+            if grep -qi "Upload succeeded\|EXPORT SUCCEEDED" upload.log 2>/dev/null; then
+              echo "SENT TO APPLE: yes"
+            else
+              echo "SENT TO APPLE: no"
+            fi
+            echo ""
+            echo "--- what went wrong, if anything ---"
+            if [ -f archive.log ] || [ -f upload.log ]; then
+              grep -hE "error:|errSecInternalComponent|No profiles|Provisioning|Authentication|not authorized|Invalid" \
+                archive.log upload.log 2>/dev/null | sed 's|.*/tools/ios/||' | sort -u | head -30 \
+                || echo "(nothing matched)"
+            else
+              echo "(no logs - it stopped before building)"
+            fi
+            echo ""
+            echo "--- next ---"
+            echo "If it was sent, the build appears in App Store Connect under"
+            echo "the app, in TestFlight, after Apple finishes processing it."
+            echo "That usually takes 5 to 30 minutes and you get an email."
+          } > "$OUT"
+          echo "::group::result"
+          cat "$OUT"
+          echo "::endgroup::"
+
+      - name: Leave the result where it can be read without signing in
+        if: always()
+        run: |
+          git config user.name  "School Answers App"
+          git config user.email "school-answers@users.noreply.github.com"
+          cp tools/ios/ios-release-result.txt ios-release-result.txt
+          git add ios-release-result.txt
+          if git diff --cached --quiet; then
+            echo "Same result as last time; nothing to record."
+            exit 0
+          fi
+          git commit -m "iPhone app release result"
+          git pull --rebase --autostash origin main || true
+          git push origin HEAD:main
+
+      - name: Keep the full logs too
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: ios-release-logs
+          path: |
+            tools/ios/archive.log
+            tools/ios/upload.log
+          if-no-files-found: ignore
+          retention-days: 14
