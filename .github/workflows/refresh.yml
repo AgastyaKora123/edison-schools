@@ -104,7 +104,7 @@ jobs:
                   $frag.Substring(0, $i) + "`n</head>`n<body>`n" + $frag.Substring($i) + "`n</body>`n</html>`n"
           [IO.File]::WriteAllText("index.html", $html, $utf8)
           Copy-Item "index.html" "404.html" -Force
-          foreach ($f in @("engine.js", "district.js", "app.js", "manifest.webmanifest", "icon.svg")) {
+          foreach ($f in @("engine.js", "district.js", "practice.js", "app.js", "manifest.webmanifest", "icon.svg")) {
             Copy-Item "tools/web/$f" $f -Force
           }
 

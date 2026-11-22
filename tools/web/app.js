@@ -981,7 +981,7 @@
     thread.scrollTop = 0;
   }
 
-  el('home-btn').addEventListener('click', () => { hideCalendar(); goHome(); });
+  el('home-btn').addEventListener('click', () => { hideCalendar(); hidePractice(); goHome(); });
 
   // ---------------------------------------------------------------- month
 
@@ -1135,6 +1135,249 @@
     calPicked = null;
     renderCalendar();
   }
+
+  // -------------------------------------------------------------- practice
+
+  // Three states in one section: the decks, making one, studying one. The
+  // logic lives in practice.js, shared rule-for-rule with the iPhone app.
+
+  let decks = (window.Practice ? Practice.load() : []);
+  let studyDeck = null;     // the deck being studied
+  let studyQueue = [];      // today's cards, hardest first
+  let studyDone = 0;
+
+  function practiceDue() {
+    return decks.reduce((n, d) => n + Practice.dueCards(d).length, 0);
+  }
+
+  /** Keeps the home card honest about what is waiting. */
+  function refreshPracticeCard() {
+    const sub = el('practice-sub');
+    const badge = el('practice-badge');
+    if (!sub || !badge) return;
+    if (!decks.length) {
+      sub.textContent = 'Turn your notes into questions';
+      badge.hidden = true;
+      return;
+    }
+    const due = practiceDue();
+    sub.textContent = due ? (due + ' card' + (due === 1 ? '' : 's') + ' waiting')
+                          : 'Nothing due - come back tomorrow';
+    badge.hidden = due === 0;
+    badge.textContent = String(due);
+  }
+
+  function showPracticePane(which) {
+    for (const id of ['practice-decks', 'practice-new', 'practice-study']) {
+      const n = el(id);
+      if (n) n.hidden = (id !== 'practice-' + which);
+    }
+  }
+
+  function showPractice() {
+    el('thread').hidden = true;
+    el('composer').hidden = true;
+    hideCalendar();
+    el('practice-view').hidden = false;
+    renderDecks();
+    showPracticePane('decks');
+    window.scrollTo(0, 0);
+  }
+
+  function hidePractice() {
+    const v = el('practice-view');
+    if (!v || v.hidden) return;
+    v.hidden = true;
+    el('thread').hidden = false;
+    el('composer').hidden = false;
+    refreshPracticeCard();
+  }
+
+  function renderDecks() {
+    const list = el('deck-list');
+    if (!list) return;
+    list.innerHTML = '';
+    el('practice-empty').hidden = decks.length > 0;
+
+    decks.forEach((d) => {
+      const due = Practice.dueCards(d).length;
+      const row = document.createElement('button');
+      row.className = 'deck';
+      row.type = 'button';
+
+      const text = document.createElement('span');
+      text.className = 'deck-text';
+      const name = document.createElement('b');
+      name.textContent = d.name;
+      const sub = document.createElement('small');
+      sub.textContent = d.cards.length + ' cards · ' + Practice.learned(d) + ' learned'
+                      + (due ? ' · ' + due + ' due' : '');
+      text.appendChild(name);
+      text.appendChild(sub);
+      row.appendChild(text);
+
+      const del = document.createElement('span');
+      del.className = 'deck-del';
+      del.textContent = '×';
+      del.title = 'Delete this deck';
+      del.addEventListener('click', (e) => {
+        e.stopPropagation();
+        if (!window.confirm('Delete "' + d.name + '"? This cannot be undone.')) return;
+        decks = decks.filter((x) => x.id !== d.id);
+        Practice.save(decks);
+        renderDecks();
+      });
+      row.appendChild(del);
+
+      row.addEventListener('click', () => startStudy(d));
+      list.appendChild(row);
+    });
+  }
+
+  // ---- making one
+
+  function renderPreview() {
+    const box = el('deck-preview');
+    const notes = el('deck-notes').value;
+    box.innerHTML = '';
+    if (!notes.trim()) { el('deck-save').disabled = true; return; }
+
+    const r = Practice.parse(notes);
+    el('deck-save').disabled = r.cards.length === 0;
+
+    const found = document.createElement('div');
+    found.className = 'pr-preview';
+    const h = document.createElement('h3');
+    h.textContent = 'Found ' + r.cards.length + ' question' + (r.cards.length === 1 ? '' : 's');
+    found.appendChild(h);
+
+    r.cards.slice(0, 6).forEach((c) => {
+      const p = document.createElement('div');
+      p.className = 'pr-pair';
+      const b = document.createElement('b');
+      b.textContent = c.front;
+      const s = document.createElement('span');
+      s.textContent = c.back;
+      p.appendChild(b); p.appendChild(s);
+      found.appendChild(p);
+    });
+    if (r.cards.length > 6) {
+      const more = document.createElement('p');
+      more.className = 'pr-skip';
+      more.textContent = 'and ' + (r.cards.length - 6) + ' more';
+      found.appendChild(more);
+    }
+    box.appendChild(found);
+
+    // Said out loud rather than silently dropped.
+    if (r.skipped.length) {
+      const sk = document.createElement('div');
+      sk.className = 'pr-preview';
+      const h2 = document.createElement('h3');
+      h2.textContent = "Couldn't read " + r.skipped.length;
+      sk.appendChild(h2);
+      r.skipped.slice(0, 4).forEach((line) => {
+        const p = document.createElement('p');
+        p.className = 'pr-skip';
+        p.textContent = line;
+        sk.appendChild(p);
+      });
+      const why = document.createElement('p');
+      why.className = 'pr-skip';
+      why.textContent = 'These had no term and meaning in them - headings and '
+                      + 'notes-to-self usually. Add a dash or a colon if one should be a question.';
+      sk.appendChild(why);
+      box.appendChild(sk);
+    }
+  }
+
+  // ---- studying
+
+  function startStudy(deck) {
+    studyDeck = deck;
+    studyQueue = Practice.dueCards(deck);
+    studyDone = 0;
+    el('study-title').textContent = deck.name;
+    showPracticePane('study');
+    renderStudy();
+  }
+
+  function renderStudy() {
+    const card = studyQueue[0];
+    const back = el('study-back');
+    if (!card) {
+      el('study-front').textContent = studyDone
+        ? 'Done for now'
+        : 'Nothing due in this deck';
+      back.hidden = false;
+      el('study-back-text').textContent = studyDone
+        ? studyDone + ' answered. The ones you got wrong come back today; the rest come back later.'
+        : 'Everything here has been answered recently. Come back tomorrow.';
+      el('study-reveal-row').hidden = true;
+      el('study-answer-row').hidden = true;
+      el('study-left').textContent = '';
+      return;
+    }
+    el('study-front').textContent = card.front;
+    el('study-back-text').textContent = card.back;
+    back.hidden = true;
+    el('study-reveal-row').hidden = false;
+    el('study-answer-row').hidden = true;
+    el('study-left').textContent = studyQueue.length + ' left';
+  }
+
+  function answerStudy(correct) {
+    const card = studyQueue[0];
+    if (!card || !studyDeck) return;
+    if (correct) Practice.markCorrect(card); else Practice.markWrong(card);
+    Practice.save(decks);
+
+    studyQueue.shift();
+    // A card got wrong is not finished with: back to the end of today's
+    // queue, so the session ends when you actually know them.
+    if (!correct) studyQueue.push(card);
+    studyDone += 1;
+    renderStudy();
+  }
+
+  const wayPr = el('way-practice');
+  if (wayPr) wayPr.addEventListener('click', showPractice);
+  const deckNew = el('deck-new');
+  if (deckNew) deckNew.addEventListener('click', () => {
+    el('deck-name').value = '';
+    el('deck-notes').value = '';
+    el('deck-preview').innerHTML = '';
+    el('deck-save').disabled = true;
+    showPracticePane('new');
+  });
+  const deckNotes = el('deck-notes');
+  if (deckNotes) deckNotes.addEventListener('input', renderPreview);
+  const deckCancel = el('deck-cancel');
+  if (deckCancel) deckCancel.addEventListener('click', () => showPracticePane('decks'));
+  const deckSave = el('deck-save');
+  if (deckSave) deckSave.addEventListener('click', () => {
+    const r = Practice.parse(el('deck-notes').value);
+    if (!r.cards.length) return;
+    const name = el('deck-name').value.trim() || 'Untitled';
+    decks.push(Practice.newDeck(name, r.cards));
+    Practice.save(decks);
+    renderDecks();
+    showPracticePane('decks');
+  });
+  const sReveal = el('study-reveal');
+  if (sReveal) sReveal.addEventListener('click', () => {
+    el('study-back').hidden = false;
+    el('study-reveal-row').hidden = true;
+    el('study-answer-row').hidden = false;
+  });
+  const sRight = el('study-right');
+  if (sRight) sRight.addEventListener('click', () => answerStudy(true));
+  const sWrong = el('study-wrong');
+  if (sWrong) sWrong.addEventListener('click', () => answerStudy(false));
+  const sBack = el('study-back-btn');
+  if (sBack) sBack.addEventListener('click', () => { renderDecks(); showPracticePane('decks'); });
+
+  refreshPracticeCard();
 
   const wayCal = el('way-calendar');
   if (wayCal) wayCal.addEventListener('click', showCalendar);

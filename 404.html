@@ -626,6 +626,66 @@ dialog::backdrop { background: rgba(0,0,0,.45); }
 
 .cal-legend { display: flex; gap: 14px; justify-content: center; margin-top: 16px; flex-wrap: wrap; }
 .cal-legend span { display: inline-flex; align-items: center; gap: 5px; font-size: 11.5px; color: var(--ink-soft); }
+
+/* ---- Practice ---------------------------------------------------------- */
+
+.way-badge {
+  margin-left: auto; background: var(--accent); color: var(--accent-ink);
+  font-size: 12px; font-weight: 700; border-radius: 999px; padding: 2px 9px;
+}
+.pr-title { font-size: 20px; margin: 14px 0 10px; }
+.pr-note { color: var(--ink-soft); font-size: 13.5px; line-height: 1.5; }
+.pr-note.small { font-size: 12px; color: var(--ink-faint); }
+.pr-label { display: block; font-size: 12px; font-weight: 650; color: var(--ink-soft);
+            margin: 14px 0 5px; }
+.pr-input {
+  width: 100%; box-sizing: border-box; padding: 11px 13px; font: inherit;
+  color: inherit; background: var(--card); border: 1px solid var(--line);
+  border-radius: 11px;
+}
+.pr-input:focus { outline: none; border-color: var(--accent); }
+.pr-area { resize: vertical; min-height: 150px; line-height: 1.5; }
+.pr-row { display: flex; gap: 10px; margin: 16px 0 8px; }
+.pr-primary, .pr-secondary, .pr-right, .pr-wrong {
+  flex: 1; padding: 12px 14px; font: inherit; font-weight: 600;
+  border-radius: 11px; cursor: pointer; border: 1px solid transparent;
+}
+.pr-primary { background: var(--accent); color: var(--accent-ink); }
+.pr-primary:disabled { opacity: 0.45; cursor: default; }
+.pr-secondary { background: var(--card); color: inherit; border-color: var(--line); }
+.pr-right { background: #1e6b4a; color: #fff; }
+.pr-wrong { background: var(--card); color: #b3261e; border-color: #b3261e; }
+
+.deck {
+  display: flex; align-items: center; gap: 10px; width: 100%; text-align: left;
+  padding: 14px 16px; margin-bottom: 9px; cursor: pointer; font: inherit;
+  color: inherit; background: var(--card); border: 1px solid var(--line);
+  border-radius: 13px;
+}
+.deck:hover { border-color: var(--accent); }
+.deck-text { display: flex; flex-direction: column; gap: 2px; }
+.deck-text b { font-size: 15px; }
+.deck-text small { color: var(--ink-soft); font-size: 12px; }
+.deck-del {
+  margin-left: auto; background: none; border: none; cursor: pointer;
+  color: var(--ink-faint); font-size: 17px; padding: 4px 6px;
+}
+.deck-del:hover { color: #b3261e; }
+
+.pr-preview { margin-top: 14px; }
+.pr-preview h3 { font-size: 13px; margin: 0 0 7px; color: var(--ink-soft); }
+.pr-pair { padding: 8px 0; border-bottom: 1px solid var(--line); }
+.pr-pair b { display: block; font-size: 13.5px; }
+.pr-pair span { font-size: 12.5px; color: var(--ink-soft); }
+.pr-skip { font-size: 12px; color: var(--ink-faint); margin: 3px 0; }
+
+.pr-card {
+  background: var(--card); border: 1px solid var(--line); border-radius: 16px;
+  padding: 26px 22px; margin-top: 10px; text-align: center;
+}
+.pr-front { font-size: 20px; font-weight: 650; margin: 0; line-height: 1.35; }
+.pr-rule { border: none; border-top: 1px solid var(--line); margin: 16px 0; }
+.pr-back { font-size: 16px; margin: 0; line-height: 1.5; color: var(--ink); }
 </style>
 
 
@@ -692,8 +752,15 @@ dialog::backdrop { background: rgba(0,0,0,.45); }
           <small>See the month, and where the days off fall</small>
         </span>
       </button>
+      <button class="way" id="way-practice" type="button">
+        <span class="way-icon" aria-hidden="true">&#9783;</span>
+        <span class="way-text">
+          <b>Practice</b>
+          <small id="practice-sub">Turn your notes into questions</small>
+        </span>
+        <span class="way-badge" id="practice-badge" hidden></span>
+      </button>
     </div>
-
     <section class="intro" id="intro">
       <h1 id="askhead">Ask about your schools.</h1>
       <p>Hours, closings, early dismissals, breaks, absences, buses, meals and policies — answered from the district's own published information. Works offline.</p>
@@ -704,6 +771,64 @@ dialog::backdrop { background: rgba(0,0,0,.45); }
          district is being answered for and whether its pages were read. -->
     <p class="disclaimer" id="disclaimer"></p>
     <p class="disclaimer"><a href="privacy.html">Privacy</a> &middot; this app collects nothing about you.</p>
+  </div>
+</main>
+
+<!-- Practice. Three states in one section: the decks, making one, and
+     studying. Deliberately plain - the work is the recall, and anything
+     that makes a card take longer to answer is in the way. -->
+<main id="practice-view" class="gutter" hidden>
+  <div class="wrap">
+
+    <div id="practice-decks">
+      <h2 class="pr-title">Practice</h2>
+      <p class="pr-note" id="practice-empty">
+        Paste your notes and this turns them into questions. It reads the way
+        people already write them &mdash; &ldquo;Mitochondria - the powerhouse
+        of the cell&rdquo;.
+      </p>
+      <div id="deck-list"></div>
+      <button class="pr-primary" id="deck-new" type="button">Add your notes</button>
+      <p class="pr-note small">Decks are kept in this browser only. Nothing is
+         uploaded, which also means clearing your browser data clears them.</p>
+    </div>
+
+    <div id="practice-new" hidden>
+      <h2 class="pr-title">New deck</h2>
+      <label class="pr-label" for="deck-name">Name</label>
+      <input class="pr-input" id="deck-name" type="text" placeholder="Biology - cells">
+      <label class="pr-label" for="deck-notes">Your notes</label>
+      <textarea class="pr-input pr-area" id="deck-notes" rows="9"
+                placeholder="Mitochondria - the powerhouse of the cell&#10;Photosynthesis: how plants make food"></textarea>
+      <p class="pr-note small">One per line, a term then its meaning. A dash, a
+         colon or an equals sign between them all work.</p>
+      <div id="deck-preview"></div>
+      <div class="pr-row">
+        <button class="pr-secondary" id="deck-cancel" type="button">Cancel</button>
+        <button class="pr-primary" id="deck-save" type="button" disabled>Save deck</button>
+      </div>
+    </div>
+
+    <div id="practice-study" hidden>
+      <h2 class="pr-title" id="study-title"></h2>
+      <div class="pr-card" id="study-card">
+        <p class="pr-front" id="study-front"></p>
+        <div id="study-back" hidden>
+          <hr class="pr-rule">
+          <p class="pr-back" id="study-back-text"></p>
+        </div>
+      </div>
+      <div class="pr-row" id="study-reveal-row">
+        <button class="pr-primary" id="study-reveal" type="button">Show answer</button>
+      </div>
+      <div class="pr-row" id="study-answer-row" hidden>
+        <button class="pr-wrong" id="study-wrong" type="button">Not yet</button>
+        <button class="pr-right" id="study-right" type="button">Got it</button>
+      </div>
+      <p class="pr-note small" id="study-left"></p>
+      <button class="pr-secondary" id="study-back-btn" type="button">Back to decks</button>
+    </div>
+
   </div>
 </main>
 
@@ -728,6 +853,7 @@ dialog::backdrop { background: rgba(0,0,0,.45); }
     </div>
   </div>
 </main>
+
 
 <form class="composer gutter" id="composer">
   <div class="row">
@@ -775,6 +901,7 @@ dialog::backdrop { background: rgba(0,0,0,.45); }
 <script src="data/districts.js"></script>
 <script src="engine.js"></script>
 <script src="district.js"></script>
+<script src="practice.js"></script>
 <script src="app.js"></script>
 
 </body>
