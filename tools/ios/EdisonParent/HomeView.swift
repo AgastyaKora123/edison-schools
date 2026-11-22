@@ -55,6 +55,7 @@ struct HomeView: View {
                             todayLine
                         }
                         ways
+                        comingUp
                         footnote
                     }
                 }
@@ -219,6 +220,99 @@ struct HomeView: View {
             RoundedRectangle(cornerRadius: 16, style: .continuous)
                 .stroke(Color.primary.opacity(0.07), lineWidth: 1)
         )
+    }
+
+    // MARK: - Coming up
+
+    /// The next few days that are not a normal full day.
+    ///
+    /// Weekends are skipped deliberately. They are not a normal full day
+    /// either, but nobody needs telling that Saturday is coming, and a list
+    /// of them would bury the two dates that actually matter.
+    ///
+    /// Ninety days is far enough to carry a parent across a break without
+    /// walking the whole school year on every launch.
+    private var upcoming: [(date: Date, info: AnswerEngine.DayInfo)] {
+        guard let engine else { return [] }
+        var out: [(Date, AnswerEngine.DayInfo)] = []
+        var day = tomorrow
+
+        for _ in 0..<90 {
+            let info = engine.dayInfo(day, school: school)
+            if info.kind != .regular && info.kind != .weekend && info.kind != .unknown {
+                out.append((day, info))
+                if out.count == 4 { break }
+            }
+            guard let next = cal.date(byAdding: .day, value: 1, to: day) else { break }
+            day = next
+        }
+        return out
+    }
+
+    @ViewBuilder
+    private var comingUp: some View {
+        let rows = upcoming
+        if !rows.isEmpty {
+            VStack(alignment: .leading, spacing: 0) {
+                Text("COMING UP")
+                    .font(.caption.weight(.heavy))
+                    .kerning(1.6)
+                    .foregroundStyle(.secondary)
+                    .padding(.horizontal, 4)
+                    .padding(.bottom, 9)
+
+                VStack(spacing: 0) {
+                    ForEach(Array(rows.enumerated()), id: \.offset) { i, row in
+                        if i > 0 { Divider().padding(.leading, 17) }
+                        comingUpRow(row.date, row.info)
+                    }
+                }
+                .background(
+                    RoundedRectangle(cornerRadius: 16, style: .continuous)
+                        .fill(Color(.secondarySystemGroupedBackground))
+                )
+                .overlay(
+                    RoundedRectangle(cornerRadius: 16, style: .continuous)
+                        .stroke(Color.primary.opacity(0.07), lineWidth: 1)
+                )
+            }
+            .padding(.top, 8)
+        }
+    }
+
+    private func comingUpRow(_ date: Date, _ info: AnswerEngine.DayInfo) -> some View {
+        HStack(alignment: .firstTextBaseline, spacing: 11) {
+            Circle()
+                .fill(tint(for: info.kind))
+                .frame(width: 8, height: 8)
+                .alignmentGuide(.firstTextBaseline) { $0[.bottom] - 1 }
+
+            Text(shortDate(date))
+                .font(.subheadline.weight(.semibold))
+                .monospacedDigit()
+                .frame(width: 86, alignment: .leading)
+
+            VStack(alignment: .leading, spacing: 1) {
+                Text(verdict(for: info.kind)).font(.subheadline)
+                if !info.reason.isEmpty {
+                    Text(info.reason)
+                        .font(.caption)
+                        .foregroundStyle(.secondary)
+                        .lineLimit(1)
+                }
+            }
+            Spacer(minLength: 0)
+        }
+        .padding(.vertical, 11)
+        .padding(.horizontal, 17)
+    }
+
+    private func shortDate(_ d: Date) -> String {
+        let f = DateFormatter()
+        f.calendar = cal
+        f.timeZone = cal.timeZone
+        f.dateFormat = "EEE d MMM"
+        return f.string(from: d)
     }
 
     // MARK: - Odds and ends
