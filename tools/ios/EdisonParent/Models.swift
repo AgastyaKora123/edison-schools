@@ -33,6 +33,15 @@ struct KnowledgePack: Codable {
         var phone: String
         var address: String
         var timeZone: String
+        /// Where this district keeps its calendar, events, hours and feed
+        /// pages, when they are not at the usual addresses. Optional: packs
+        /// built before this existed simply have no entry, and the engine
+        /// falls back to the standard paths.
+        var pages: [String: String]?
+        /// Names for the groupings a district uses beyond elementary, middle
+        /// and high - a preschool, an academy, a career centre. Its own names,
+        /// from its own file, rather than one district's written into the app.
+        var levelLabels: [String: String]?
     }
 
     /// When the pack was built, for the "last updated" line in Settings.

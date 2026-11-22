@@ -22,8 +22,33 @@ struct AnswerEngine {
     let rules: Rules
 
     /// All dates are interpreted in the district's own time zone, so a parent
-    /// asking at 11pm Pacific still gets Edison's "tomorrow".
+    /// asking at 11pm Pacific still gets the district's "tomorrow".
     private let calendar: Calendar
+
+    /// Every link an answer cites comes from the pack, never from a constant
+    /// in here. Hard-coded links are how a parent in another district ended
+    /// up being given Edison's phone number when they asked about absences.
+    struct DistrictLinks {
+        var site: String
+        var calendar: String
+        var events: String
+        var hours: String
+        var feed: String
+    }
+    let links: DistrictLinks
+
+    /// The district's name, short enough to put in a sentence.
+    let districtShort: String
+
+    /// How to refer to all of them at once: "Edison schools", or "schools in
+    /// the district" when the pack does not name one.
+    let allSchoolsLabel: String
+
+    /// Words worth ignoring when searching the district's pages. The
+    /// district's own name is noise - every page says it - and which words
+    /// those are depends on the district, so the list is built per district
+    /// rather than written down with one district's name in it.
+    let stop: Set<String>
 
     init(pack: KnowledgePack, rules: Rules) {
         self.pack = pack
@@ -32,6 +57,58 @@ struct AnswerEngine {
         cal.timeZone = TimeZone(identifier: pack.district.timeZone) ?? TimeZone(identifier: "America/New_York")!
         cal.locale = Locale(identifier: "en_US")
         self.calendar = cal
+
+        let site = pack.district.url
+            .replacingOccurrences(of: "/+$", with: "", options: .regularExpression)
+        func page(_ key: String, _ fallback: String) -> String {
+            if let p = pack.district.pages?[key], !p.isEmpty { return p }
+            return site.isEmpty ? "" : site + fallback
+        }
+        self.links = DistrictLinks(
+            site: site,
+            calendar: page("calendar", "/page/district-yearly-calendar/"),
+            events:   page("events",   "/events/"),
+            hours:    page("hours",    "/page/school-hours/"),
+            feed:     page("feed",     "/live-feed/"))
+
+        let short = Self.shortDistrictName(pack.district.name)
+        self.districtShort = short.isEmpty ? "the district" : short
+        self.allSchoolsLabel = short.isEmpty ? "schools in the district" : short + " schools"
+
+        var words = Self.stopWords
+        for w in pack.district.name.lowercased()
+            .components(separatedBy: CharacterSet.alphanumerics.inverted) where w.count > 2 {
+            words.insert(w)
+        }
+        self.stop = words
+    }
+
+    /// "Edison Township Public Schools" -> "Edison". "Conroe ISD" -> "Conroe".
+    /// Districts name themselves in half a dozen house styles; what a parent
+    /// calls theirs is almost always the first distinctive word or two.
+    ///
+    /// Mirrors Get-ShortDistrictName in engine/Answer-Query.ps1 and
+    /// shortenDistrict in web/engine.js, including the order of the two
+    /// passes - qualifiers first, then the kind of body it is.
+    static func shortDistrictName(_ full: String) -> String {
+        guard !full.isEmpty else { return "" }
+        let qualifiers = "\\b(independent|unified|consolidated|community|county|township|city|area|regional|local|joint|union|central|public|charter)\\b"
+        let kinds = "\\b(school district|schools district|school system|schools|school|district|isd|usd|cusd|cisd|sd|psd|cs|academy|academies|corporation|corp)\\b"
+
+        var s = full.replacingOccurrences(of: qualifiers, with: " ",
+                                          options: [.regularExpression, .caseInsensitive])
+        s = s.replacingOccurrences(of: kinds, with: " ",
+                                   options: [.regularExpression, .caseInsensitive])
+        s = s.replacingOccurrences(of: "\\s+", with: " ", options: .regularExpression)
+            .trimmingCharacters(in: .whitespaces)
+
+        // Stripping everything means the name was made only of those words.
+        // Fall back to what the district actually calls itself.
+        if s.isEmpty {
+            s = full.replacingOccurrences(of: "\\s+", with: " ", options: .regularExpression)
+                .trimmingCharacters(in: .whitespaces)
+        }
+        return s.split(separator: " ").prefix(2).joined(separator: " ")
     }
 
     // MARK: - Entry point
@@ -41,7 +118,7 @@ struct AnswerEngine {
         let todayStart = calendar.startOfDay(for: today)
 
         guard !norm.isEmpty else {
-            return make("Ask me anything about Edison schools - hours, closings, the calendar, absences.",
+            return make("Ask me anything about (allSchoolsLabel) - hours, closings, the calendar, absences.",
                         intent: "empty", kind: "empty", confidence: 0,
                         debug: .init(resolver: "empty", topIntent: "", topScore: 0,
                                      dateSlot: "", schoolSlot: "", levelSlot: "",
@@ -61,7 +138,8 @@ struct AnswerEngine {
             level: resolveLevel(norm),
             date: resolveDate(norm, today: todayStart),
             scheduleKind: resolveScheduleKind(norm),
-            breakName: resolveBreak(norm)
+            breakName: resolveBreak(norm),
+            counting: Self.asksForCount(norm)
         )
 
         let scores = intentScores(norm)
@@ -77,6 +155,24 @@ struct AnswerEngine {
         } else if (Self.containsPhrase(norm, "next") || Self.containsPhrase(norm, "upcoming")),
                   ctx.scheduleKind != nil, ctx.date == nil {
             resolver = "next_occurrence"
+        }
+
+        // Counting or enumerating is the list question, however it is worded.
+        // Without this, "how many early dismissal days are in this school
+        // year" landed on day_schedule, found no date, and answered about
+        // today - "Saturday, November 21 is a Saturday, so there is no
+        // school." Keying off the shape of the question is what fixes that
+        // for phrasings nobody has thought of yet.
+        if Self.oneDayResolvers.contains(resolver), ctx.date == nil {
+            if Self.asksForAll(norm),
+               ctx.scheduleKind != nil || Self.matches(norm, Self.multiDaySubjectRe) {
+                resolver = "list_occurrences"
+            } else if Self.asksForCount(norm) {
+                // Counting something that is not on the calendar at all -
+                // "how many schools are in the district". Still not a
+                // question about today.
+                resolver = "fact_search"
+            }
         }
 
         let debug = Answer.Debug(
@@ -98,6 +194,7 @@ struct AnswerEngine {
         case "next_occurrence": result = resolveNextOccurrence(ctx)
         case "break_dates":     result = resolveBreakDates(ctx)
         case "calendar_list":   result = resolveCalendarList(ctx)
+        case "list_occurrences": result = resolveListOccurrences(ctx)
         case "absence_report":  result = resolveAbsenceReport(ctx)
         case "contact_info":    result = resolveContactInfo(ctx)
         default:                result = resolveFactSearch(ctx)
@@ -117,6 +214,8 @@ struct AnswerEngine {
         var date: DateSlot?
         var scheduleKind: String?
         var breakName: String?
+        /// They asked for a number, so the list answer leads with one.
+        var counting: Bool = false
     }
 
     struct DateSlot {
@@ -165,6 +264,38 @@ struct AnswerEngine {
             let r = m.range(at: i)
             return r.location == NSNotFound ? nil : ns.substring(with: r)
         }
+    }
+
+    // MARK: - The shape of the question
+
+    // Whether someone wants a number, a list, or a yes-or-no about one day is
+    // a property of the SHAPE of the question, not of its vocabulary. "How
+    // many early dismissals are there this year" and "is today an early
+    // dismissal" share every keyword that matters; only the shape separates
+    // them. A word list in the rules file will always miss a phrasing. This
+    // does not, which is why the routing below keys off it.
+    //
+    // These four mirror COUNTING_RE, SPAN_RE, ENUMERATE_RE and
+    // MULTI_DAY_SUBJECT in web/engine.js, and the same four in
+    // engine/Answer-Query.ps1. Change one, change all three.
+    static let countingRe =
+        "(?:^|[^a-z0-9])(how many|how much|how often|number of|count of)(?:[^a-z0-9]|$)"
+    static let spanRe =
+        "(?:^|[^a-z0-9])(this (school )?year|the (school )?year|whole year|rest of the|all year|left|remaining)(?:[^a-z0-9]|$)"
+    static let enumerateRe =
+        "(?:^|[^a-z0-9])(list|every|all the|all of the)(?:[^a-z0-9]|$)"
+    static let multiDaySubjectRe =
+        "(?:^|[^a-z0-9])(days? off|holidays?|closings?|closures?|no school|half days?|early dismissals?|single sessions?|late starts?|delayed openings?|snow days?)(?:[^a-z0-9]|$)"
+
+    /// Resolvers that answer about one particular day. Any of them reached by
+    /// a counting question is a routing mistake, not a hard question.
+    static let oneDayResolvers: Set<String> =
+        ["school_status", "day_schedule", "bell_times", "fact_search"]
+
+    static func asksForCount(_ norm: String) -> Bool { matches(norm, countingRe) }
+
+    static func asksForAll(_ norm: String) -> Bool {
+        matches(norm, countingRe) || matches(norm, enumerateRe) || matches(norm, spanRe)
     }
 
     // MARK: - Date slot
@@ -311,37 +442,62 @@ struct AnswerEngine {
         return best
     }
 
-    func resolveLevel(_ norm: String) -> String? {
+    /// Like containsPhrase, but lets the last word be plural. "How many late
+    /// starts this year" was finding no schedule kind at all, because the
+    /// list holds "late start" and the whole-word match stopped at the "s".
+    /// Listing every plural by hand is the treadmill; allowing one is not.
+    static func containsPhrasePlural(_ hay: String, _ needle: String) -> Bool {
+        guard !needle.isEmpty else { return false }
+        let escaped = NSRegularExpression.escapedPattern(for: needle)
+            .replacingOccurrences(of: "\\ ", with: "\\s+")
+        return matches(hay, "(?:^|[^a-z0-9])\(escaped)(?:es|s)?(?:[^a-z0-9]|$)")
+    }
+
+    /// Squash repeated letters: "dissmisal" and "dismissal" both become
+    /// "dismisal". Doubled or dropped double letters are far and away the
+    /// commonest typo in these particular words, and a parent typing
+    /// "dissmisal" means exactly what a parent typing "dismissal" means.
+    static func squashDoubles(_ s: String) -> String {
+        s.replacingOccurrences(of: "([a-z])\\1+", with: "$1", options: .regularExpression)
+    }
+
+    /// The longest matching word wins, so "early dismissal" beats "early".
+    /// Exact matches are tried across the whole list first; only if nothing
+    /// matches at all is the typo-tolerant pass used, and then only on words
+    /// of six letters or more - on short words squashing destroys meaning,
+    /// and a day "off" is not a day "of".
+    static func longestMapMatch(_ norm: String, _ map: [String: [String]]) -> String? {
         var best: String? = nil
         var bestLen = 0
-        for (level, words) in rules.levelWords {
+        for (key, words) in map {
+            for w in words where w.count > bestLen && containsPhrasePlural(norm, w) {
+                best = key; bestLen = w.count
+            }
+        }
+        if best != nil { return best }
+
+        let squashed = squashDoubles(norm)
+        for (key, words) in map {
             for w in words where w.count > bestLen {
-                if Self.containsPhrase(norm, w) { best = level; bestLen = w.count }
+                guard w.filter({ $0.isLetter }).count >= 6 else { continue }
+                if containsPhrasePlural(squashed, squashDoubles(w)) {
+                    best = key; bestLen = w.count
+                }
             }
         }
         return best
+    }
+
+    func resolveLevel(_ norm: String) -> String? {
+        Self.longestMapMatch(norm, rules.levelWords)
     }
 
     func resolveScheduleKind(_ norm: String) -> String? {
-        var best: String? = nil
-        var bestLen = 0
-        for (kind, words) in rules.scheduleWords {
-            for w in words where w.count > bestLen {
-                if Self.containsPhrase(norm, w) { best = kind; bestLen = w.count }
-            }
-        }
-        return best
+        Self.longestMapMatch(norm, rules.scheduleWords)
     }
 
     func resolveBreak(_ norm: String) -> String? {
-        var best: String? = nil
-        var bestLen = 0
-        for (name, words) in rules.breaks {
-            for w in words where w.count > bestLen {
-                if Self.containsPhrase(norm, w) { best = name; bestLen = w.count }
-            }
-        }
-        return best
+        Self.longestMapMatch(norm, rules.breaks)
     }
 
     // MARK: - Intent scoring
@@ -501,16 +657,26 @@ struct AnswerEngine {
         return String(format: "%d:%02d %@", h12, m, ap)
     }
 
-    static func levelLabel(_ level: String) -> String {
-        switch level {
-        case "elementary": return "Elementary schools (K-5)"
-        case "middle":     return "Middle schools"
-        case "high":       return "High schools"
-        case "academy":    return "Edison Success Academy"
-        case "eelc":       return "Edison Early Learning Center"
-        case "fdr":        return "FDR Preschool"
-        default:           return level
-        }
+    /// The three levels nearly every district has. Anything beyond them -
+    /// an academy, a preschool, a career centre - is named by the district
+    /// itself in its own file, because "Edison Success Academy" is not a
+    /// thing any other district has.
+    static let genericLevelLabels: [String: String] = [
+        "elementary": "Elementary schools",
+        "middle": "Middle schools",
+        "high": "High schools"
+    ]
+
+    static func titleCase(_ s: String) -> String {
+        let spaced = s.replacingOccurrences(of: "[_-]+", with: " ", options: .regularExpression)
+        return spaced.split(separator: " ", omittingEmptySubsequences: false)
+            .map { $0.isEmpty ? "" : $0.prefix(1).uppercased() + $0.dropFirst() }
+            .joined(separator: " ")
+    }
+
+    func levelLabel(_ level: String) -> String {
+        if let own = pack.district.levelLabels?[level], !own.isEmpty { return own }
+        return Self.genericLevelLabels[level] ?? Self.titleCase(level)
     }
 
     func bellLines(_ ctx: Context, dayKind: DayKind) -> String {
@@ -523,7 +689,7 @@ struct AnswerEngine {
         for lvl in levels {
             for b in pack.bells where b.level == lvl {
                 guard let span = b.span(for: dayKind), !span.start.isEmpty else { continue }
-                let line = "\(Self.levelLabel(lvl)): \(Self.format12(span.start)) to \(Self.format12(span.end))"
+                let line = "\(levelLabel(lvl)): \(Self.format12(span.start)) to \(Self.format12(span.end))"
                 if !lines.contains(line) { lines.append(line) }
             }
         }
@@ -578,7 +744,7 @@ struct AnswerEngine {
 
     func resolveSchoolStatus(_ ctx: Context) -> Answer {
         let slot = ctx.date ?? DateSlot(start: ctx.today, end: ctx.today, isRange: false, phrase: "today")
-        let label = ctx.school?.name ?? "Edison schools"
+        let label = ctx.school?.name ?? allSchoolsLabel
         let isAre = ctx.school != nil ? "is" : "are"
 
         if slot.isRange {
@@ -601,7 +767,7 @@ struct AnswerEngine {
             }
             return make("\(label) for \(slot.phrase):\n" + lines.joined(separator: "\n"),
                         intent: "school_status", kind: "range",
-                        sources: ["https://www.edison.k12.nj.us/events/"],
+                        sources: [links.events],
                         schoolId: ctx.school?.id ?? "")
         }
 
@@ -609,8 +775,8 @@ struct AnswerEngine {
         let info = dayInfo(date, school: ctx.school)
         var src: [String] = []
         if let e = info.entry { src.append(e.url) }
-        if info.alert != nil { src.append("https://www.edison.k12.nj.us/live-feed/") }
-        src.append("https://www.edison.k12.nj.us/page/district-yearly-calendar/")
+        if info.alert != nil { src.append(links.feed) }
+        src.append(links.calendar)
 
         // An announcement is worth marking as one - a parent should see that
         // this came from the district saying so today, not from the calendar.
@@ -674,19 +840,19 @@ struct AnswerEngine {
                 let what = asked?.replacingOccurrences(of: "_", with: " ") ?? "schedule change"
                 return make("No \(what) is listed for \(slot.phrase).",
                             intent: "day_schedule", kind: "none",
-                            sources: ["https://www.edison.k12.nj.us/events/"], confidence: 0.85)
+                            sources: [links.events], confidence: 0.85)
             }
             let lines = hits.map { "\(dateShort($0.0)) - \($0.1)" }
             return make("For \(slot.phrase):\n" + lines.joined(separator: "\n"),
                         intent: "day_schedule", kind: "range",
-                        sources: ["https://www.edison.k12.nj.us/events/"], confidence: 0.9)
+                        sources: [links.events], confidence: 0.9)
         }
 
         let date = slot.start
         let info = dayInfo(date, school: ctx.school)
         var src: [String] = []
         if let e = info.entry { src.append(e.url) }
-        src.append("https://www.edison.k12.nj.us/page/school-hours/")
+        src.append(links.hours)
 
         if info.kind == .weekend {
             return make("\(dateLong(date)) is a \(weekdayName(date)) - no school.",
@@ -748,13 +914,13 @@ struct AnswerEngine {
             if info.kind == .weekend {
                 return make("\(dateLong(d)) is a \(weekdayName(d)) - no school.",
                             intent: "bell_times", kind: "weekend",
-                            sources: ["https://www.edison.k12.nj.us/page/school-hours/"], confidence: 0.95)
+                            sources: [links.hours], confidence: 0.95)
             }
             if info.kind == .closed {
                 let why = info.reason.isEmpty ? "" : " (\(info.reason))"
                 return make("Schools are closed on \(dateLong(d))\(why).",
                             intent: "bell_times", kind: "closed",
-                            sources: ["https://www.edison.k12.nj.us/page/district-yearly-calendar/"], confidence: 0.92)
+                            sources: [links.calendar], confidence: 0.92)
             }
             if info.kind == .earlyDismissal || info.kind == .delayedOpening {
                 dayKind = info.kind
@@ -786,7 +952,7 @@ struct AnswerEngine {
             t += "\nDelayed opening starts 2 hours later; early dismissal/single session ends early."
         }
         return make(t, intent: "bell_times", kind: dayKind.rawValue,
-                    sources: ["https://www.edison.k12.nj.us/page/school-hours/"],
+                    sources: [links.hours],
                     confidence: 0.9, schoolId: ctx.school?.id ?? "")
     }
 
@@ -818,7 +984,7 @@ struct AnswerEngine {
             let what = ctx.scheduleKind?.replacingOccurrences(of: "_", with: " ") ?? "schedule change"
             return make("Nothing further is published for a \(what) this school year.",
                         intent: "next_occurrence", kind: "none",
-                        sources: ["https://www.edison.k12.nj.us/events/"], confidence: 0.6)
+                        sources: [links.events], confidence: 0.6)
         }
 
         let e2 = parsePackDate(pick.endDate) ?? s
@@ -855,7 +1021,7 @@ struct AnswerEngine {
         guard !cands.isEmpty else {
             return make("I couldn't find \(brk ?? "that break") on the published calendar.",
                         intent: "break_dates", kind: "none",
-                        sources: ["https://www.edison.k12.nj.us/page/district-yearly-calendar/"], confidence: 0.4)
+                        sources: [links.calendar], confidence: 0.4)
         }
 
         // Prefer the next upcoming one; fall back to the most recent.
@@ -878,7 +1044,7 @@ struct AnswerEngine {
         guard let pick = future.first?.0 ?? past.first?.0 else {
             return make("I couldn't read the dates for \(brk ?? "that break").",
                         intent: "break_dates", kind: "none",
-                        sources: ["https://www.edison.k12.nj.us/page/district-yearly-calendar/"],
+                        sources: [links.calendar],
                         confidence: 0.2)
         }
 
@@ -903,11 +1069,104 @@ struct AnswerEngine {
         }
 
         return make(t, intent: "break_dates", kind: "break",
-                    sources: [pick.url, "https://www.edison.k12.nj.us/page/district-yearly-calendar/"],
+                    sources: [pick.url, links.calendar],
                     confidence: 0.92)
     }
 
     // MARK: - Resolver: calendar list
+
+    // MARK: - Resolver: every occurrence, for the whole year
+
+    /// "List every early dismissal", "what are all the days off this year",
+    /// "how many half days are there".
+    ///
+    /// Shows the whole school year rather than the next fortnight: someone
+    /// asking for the list is planning, not checking today. Without this,
+    /// "list early dismissal days" matched on the words "early dismissal" and
+    /// was answered as "is TODAY an early dismissal" - a flat, useless no.
+    func resolveListOccurrences(_ ctx: Context) -> Answer {
+        let wanted: [String]
+        let label: String
+        switch ctx.scheduleKind {
+        case "early_dismissal":
+            wanted = ["early_dismissal", "single_session"]
+            label = "Early dismissal and single session days"
+        case "single_session":
+            wanted = ["single_session"]
+            label = "Single session days"
+        case "delayed_opening":
+            wanted = ["delayed_opening"]
+            label = "Delayed openings"
+        case "closed":
+            wanted = ["closed", "break"]
+            label = "Days schools are closed"
+        default:
+            wanted = ["closed", "break", "early_dismissal", "single_session", "delayed_opening"]
+            label = "Days that are not a normal full day"
+        }
+
+        let sid = ctx.school?.id
+        let todayKey = Self.iso(ctx.today)
+
+        // Schools republish the district's own dates on their own calendars,
+        // so one districtwide early dismissal appears once for the district
+        // and again for each of your children's schools. Collapse by date and
+        // title, and let the district's copy win.
+        var byKey: [String: CalendarEntry] = [:]
+        for e in pack.calendar {
+            guard wanted.contains(e.kind) else { continue }
+            if e.scope != "district" {
+                guard let sid, e.schoolIds.contains(sid) else { continue }
+            }
+            let key = e.date + "|" + e.title.lowercased()
+            if let prev = byKey[key] {
+                if prev.scope != "district", e.scope == "district" { byKey[key] = e }
+            } else {
+                byKey[key] = e
+            }
+        }
+        let rows = byKey.values.sorted { $0.date < $1.date }
+
+        guard !rows.isEmpty else {
+            return make("Nothing like that is on the published calendar.",
+                        intent: "list_occurrences", kind: "none",
+                        sources: [links.calendar], confidence: 0.5)
+        }
+
+        let upcoming = rows.filter { (($0.endDate.isEmpty ? $0.date : $0.endDate)) >= todayKey }
+        let past = rows.count - upcoming.count
+
+        let lines = upcoming.map { r -> String in
+            guard let s = parsePackDate(r.date) else { return r.title }
+            let e = parsePackDate(r.endDate) ?? s
+            let d = calendar.isDate(s, inSameDayAs: e)
+                ? dateShort(s)
+                : "\(dateShort(s))-\(dateShort(e))"
+            return "\(d) - \(r.title)"
+        }
+
+        var t: String
+        if ctx.counting {
+            // They asked for a number, so lead with the number - for the
+            // whole year, which is what "in this school year" means, not just
+            // what is left. The list that follows is the part they can still
+            // plan around.
+            t = "\(label): \(rows.count) on this school year's calendar."
+            t += upcoming.isEmpty
+                ? " None left."
+                : " \(upcoming.count) still to come:\n" + lines.joined(separator: "\n")
+            if past > 0 { t += "\n\n(\(past) already passed.)" }
+        } else if upcoming.isEmpty {
+            t = "\(label): none left this school year."
+            if past > 0 { t += "\n\n(\(past) already passed this school year.)" }
+        } else {
+            t = "\(label) still to come (\(upcoming.count)):\n" + lines.joined(separator: "\n")
+            if past > 0 { t += "\n\n(\(past) already passed this school year.)" }
+        }
+
+        return make(t, intent: "list_occurrences", kind: "list",
+                    sources: [links.calendar], confidence: 0.92, schoolId: sid ?? "")
+    }
 
     func resolveCalendarList(_ ctx: Context) -> Answer {
         let slot = ctx.date ?? DateSlot(start: ctx.today,
@@ -928,7 +1187,7 @@ struct AnswerEngine {
 
         guard !rows.isEmpty else {
             return make("Nothing is listed for \(slot.phrase).", intent: "calendar_list",
-                        kind: "none", sources: ["https://www.edison.k12.nj.us/events/"], confidence: 0.7)
+                        kind: "none", sources: [links.events], confidence: 0.7)
         }
 
         let lines = rows.sorted { $0.0 < $1.0 }.prefix(12).map { r -> String in
@@ -939,7 +1198,7 @@ struct AnswerEngine {
         }
         return make("\(slot.phrase):\n" + lines.joined(separator: "\n"),
                     intent: "calendar_list", kind: "list",
-                    sources: ["https://www.edison.k12.nj.us/events/"], confidence: 0.85)
+                    sources: [links.events], confidence: 0.85)
     }
 
     // MARK: - Resolver: absence
@@ -972,7 +1231,7 @@ struct AnswerEngine {
         guard let f = hits.first?.fact else {
             return make("Report an absence by calling your child's school office. The district's main number is \(pack.district.phone).",
                         intent: "absence_report", kind: "fallback",
-                        sources: ["https://www.edison.k12.nj.us/page/chain-of-communication/"], confidence: 0.35)
+                        sources: [links.site], confidence: 0.35)
         }
 
         let excerpt = factExcerpt(f, terms: terms)
@@ -1030,12 +1289,12 @@ struct AnswerEngine {
         "what", "when", "where", "who", "how", "why", "is", "are", "do", "does", "did", "the", "a", "an",
         "my", "our", "i", "we", "you", "to", "for", "of", "in", "on", "at", "it", "its", "be", "can", "could",
         "should", "would", "will", "there", "their", "and", "or", "if", "about", "from", "me", "kid", "kids",
-        "child", "children", "son", "daughter", "school", "schools", "edison", "district", "please", "tell"
+        "child", "children", "son", "daughter", "school", "schools", "district", "please", "tell"
     ]
 
     func resolveFactSearch(_ ctx: Context) -> Answer {
         let all = Self.tokens(ctx.norm).filter { $0.count > 2 }
-        var terms = all.filter { !Self.stopWords.contains($0) }
+        var terms = all.filter { !stop.contains($0) }
         if terms.isEmpty { terms = all }
 
         guard !terms.isEmpty else {
@@ -1045,9 +1304,9 @@ struct AnswerEngine {
 
         let hits = factMatches(terms: terms, school: ctx.school, top: 3)
         guard let first = hits.first else {
-            return make("I couldn't find that in the district's published pages. Try rewording, or check https://www.edison.k12.nj.us",
+            return make("I couldn't find that in the district's published pages. Try rewording, or check (links.site)",
                         intent: "fact_search", kind: "none",
-                        sources: ["https://www.edison.k12.nj.us"], confidence: 0.15)
+                        sources: [links.site], confidence: 0.15)
         }
 
         var t = "\(first.fact.title):\n" + factExcerpt(first.fact, terms: terms)
