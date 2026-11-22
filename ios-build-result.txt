@@ -1,10 +1,11 @@
-iPhone app build - 2026-11-22 17:05 UTC
+iPhone app build - 2026-11-22 17:50 UTC
 Xcode: Xcode 26.6
 
 COMPILED: yes
 
 --- anything the compiler objected to ---
-2026-11-22 16:55:48.344 appintentsmetadataprocessor[9115:28891] warning: Metadata extraction skipped. No AppIntents.framework dependency found.
+2026-11-22 17:41:47.734 appintentsmetadataprocessor[2197:10043] warning: Metadata extraction skipped. No AppIntents.framework dependency found.
+EdisonParent/Assets.xcassets: warning: Accent color ‘AccentColor’ is not present in any asset catalogs.
 
 --- checks that failed ---
 (none)
@@ -13,13 +14,13 @@ COMPILED: yes
 yes
 
 --- did the 100-question contract actually run? ---
-Test Case '-[EdisonParentTests.AnswerEngineTests testQuestionContract]' passed (5.080 seconds).
+Test Case '-[EdisonParentTests.AnswerEngineTests testQuestionContract]' passed (5.105 seconds).
 
 --- App Store screenshot ---
 captured 1206x2622 on iPhone 17 Pro
 on the site at store/screenshots-iphone/
 
 --- totals ---
-	 Executed 13 tests, with 0 failures (0 unexpected) in 0.061 (3.345) seconds
-	 Executed 29 tests, with 0 failures (0 unexpected) in 15.418 (18.713) seconds
-	 Executed 29 tests, with 0 failures (0 unexpected) in 15.418 (18.716) seconds
+	 Executed 13 tests, with 0 failures (0 unexpected) in 0.055 (2.362) seconds
+	 Executed 29 tests, with 0 failures (0 unexpected) in 16.779 (20.993) seconds
+	 Executed 29 tests, with 0 failures (0 unexpected) in 16.779 (21.348) seconds
