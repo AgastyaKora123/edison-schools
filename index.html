@@ -570,6 +570,62 @@ dialog::backdrop { background: rgba(0,0,0,.45); }
 @media (prefers-reduced-motion: reduce) {
   * { animation: none !important; transition: none !important; scroll-behavior: auto !important; }
 }
+
+/* ---- The two ways in, and the month view ------------------------------ */
+
+.ways { display: grid; gap: 10px; margin: 14px 0 18px; }
+.way {
+  display: flex; align-items: center; gap: 12px; width: 100%;
+  padding: 14px 16px; text-align: left; cursor: pointer;
+  background: var(--card); border: 1px solid var(--line); border-radius: 14px;
+  color: inherit; font: inherit;
+}
+.way:hover { border-color: var(--accent); }
+.way-icon { font-size: 20px; line-height: 1; color: var(--accent); width: 24px; }
+.way-text { display: flex; flex-direction: column; gap: 2px; }
+.way-text b { font-size: 15px; }
+.way-text small { color: var(--ink-soft); font-size: 12.5px; }
+
+.cal-head { display: flex; align-items: center; justify-content: space-between; margin: 10px 0 14px; }
+.cal-nav {
+  border: 1px solid var(--line); background: var(--card); color: inherit;
+  border-radius: 9px; width: 38px; height: 38px; font-size: 17px; cursor: pointer;
+}
+.cal-nav:hover { border-color: var(--accent); }
+.cal-title { font-size: 16px; font-weight: 650; }
+
+.cal-dow { display: grid; grid-template-columns: repeat(7, 1fr); gap: 4px; margin-bottom: 4px; }
+.cal-dow span { text-align: center; font-size: 11px; font-weight: 650; color: var(--ink-faint); }
+
+.cal-grid { display: grid; grid-template-columns: repeat(7, 1fr); gap: 4px; }
+.cal-cell {
+  min-height: 48px; border-radius: 9px; border: 1px solid transparent;
+  background: none; color: inherit; font: inherit; cursor: pointer;
+  display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 4px;
+}
+.cal-cell.blank { cursor: default; }
+.cal-cell:not(.blank):hover { background: var(--accent-wash); }
+.cal-cell.today { border-color: var(--accent); }
+.cal-cell.picked { background: var(--accent-wash); }
+.cal-cell.weekend .cal-num { color: var(--ink-faint); }
+.cal-num { font-size: 14px; font-variant-numeric: tabular-nums; }
+.cal-dot { width: 6px; height: 6px; border-radius: 50%; background: transparent; }
+.cal-dot.closed { background: #c0392b; }
+.cal-dot.early  { background: #d98324; }
+.cal-dot.late   { background: #c9a227; }
+
+.cal-detail {
+  margin-top: 14px; padding: 14px; border-radius: 12px;
+  background: var(--card); border: 1px solid var(--line);
+}
+.cal-detail h3 { margin: 0 0 4px; font-size: 14.5px; }
+.cal-detail .kind { font-size: 12.5px; margin: 0 0 8px; }
+.cal-detail ul { margin: 0; padding-left: 18px; }
+.cal-detail li { font-size: 13px; margin: 2px 0; }
+.cal-detail .none { font-size: 13px; color: var(--ink-soft); margin: 0; }
+
+.cal-legend { display: flex; gap: 14px; justify-content: center; margin-top: 16px; flex-wrap: wrap; }
+.cal-legend span { display: inline-flex; align-items: center; gap: 5px; font-size: 11.5px; color: var(--ink-soft); }
 </style>
 
 
@@ -624,6 +680,20 @@ dialog::backdrop { background: rgba(0,0,0,.45); }
   <div class="wrap" id="wrap">
     <div id="alerts"></div>
     <section id="glance"></section>
+
+    <!-- The other way in. Asking suits someone who arrives with a question;
+         browsing suits someone who wants to see where the days off fall
+         before booking something. They answer different moods. -->
+    <div class="ways" id="ways">
+      <button class="way" id="way-calendar" type="button">
+        <span class="way-icon" aria-hidden="true">&#9638;</span>
+        <span class="way-text">
+          <b>Calendar</b>
+          <small>See the month, and where the days off fall</small>
+        </span>
+      </button>
+    </div>
+
     <section class="intro" id="intro">
       <h1 id="askhead">Ask about your schools.</h1>
       <p>Hours, closings, early dismissals, breaks, absences, buses, meals and policies — answered from the district's own published information. Works offline.</p>
@@ -634,6 +704,28 @@ dialog::backdrop { background: rgba(0,0,0,.45); }
          district is being answered for and whether its pages were read. -->
     <p class="disclaimer" id="disclaimer"></p>
     <p class="disclaimer"><a href="privacy.html">Privacy</a> &middot; this app collects nothing about you.</p>
+  </div>
+</main>
+
+<!-- The month. Only days that are not a normal full day are marked: a
+     calendar where every square is coloured tells you nothing. -->
+<main id="calendar-view" class="gutter" hidden>
+  <div class="wrap">
+    <div class="cal-head">
+      <button class="cal-nav" id="cal-prev" type="button" aria-label="Previous month">&lsaquo;</button>
+      <b class="cal-title" id="cal-title"></b>
+      <button class="cal-nav" id="cal-next" type="button" aria-label="Next month">&rsaquo;</button>
+    </div>
+    <div class="cal-dow" aria-hidden="true">
+      <span>S</span><span>M</span><span>T</span><span>W</span><span>T</span><span>F</span><span>S</span>
+    </div>
+    <div class="cal-grid" id="cal-grid"></div>
+    <div id="cal-detail"></div>
+    <div class="cal-legend">
+      <span><i class="cal-dot closed"></i> No school</span>
+      <span><i class="cal-dot early"></i> Early dismissal</span>
+      <span><i class="cal-dot late"></i> Delayed opening</span>
+    </div>
   </div>
 </main>
 

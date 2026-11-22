@@ -224,7 +224,7 @@
   }
 
   function showQuestion(q) {
-    for (const id of ['glance', 'intro', 'try-label', 'chips', 'disclaimer']) {
+    for (const id of ['glance', 'ways', 'intro', 'try-label', 'chips', 'disclaimer']) {
       const n = el(id);
       if (n) n.hidden = true;
     }
@@ -973,7 +973,7 @@
   function goHome() {
     lastContext = {};   // a cleared thread starts a fresh conversation
     for (const n of wrap.querySelectorAll('.q, .a, .ans-school')) n.remove();
-    for (const id of ['glance', 'intro', 'chips', 'try-label', 'disclaimer']) {
+    for (const id of ['glance', 'ways', 'intro', 'chips', 'try-label', 'disclaimer']) {
       const n = el(id);
       if (n) n.hidden = (id === 'intro') ? schoolIds.length > 0 : false;
     }
@@ -981,7 +981,167 @@
     thread.scrollTop = 0;
   }
 
-  el('home-btn').addEventListener('click', goHome);
+  el('home-btn').addEventListener('click', () => { hideCalendar(); goHome(); });
+
+  // ---------------------------------------------------------------- month
+
+  // Browsing and asking answer different moods: a question is for someone who
+  // has one, a month is for someone deciding whether to book something on the
+  // 14th. Only days that are not a normal full day are marked - a calendar
+  // where every square is coloured tells you nothing.
+
+  const MONTHS = ['January', 'February', 'March', 'April', 'May', 'June', 'July',
+                  'August', 'September', 'October', 'November', 'December'];
+
+  let calMonth = null;    // the first of the month on screen
+  let calPicked = null;   // the day whose detail is open, if any
+
+  function dotClass(kind) {
+    return kind === 'closed' ? 'closed'
+         : kind === 'early_dismissal' ? 'early'
+         : kind === 'delayed_opening' ? 'late' : '';
+  }
+
+  function kindLabel(kind) {
+    return kind === 'closed' ? 'No school'
+         : kind === 'early_dismissal' ? 'Early dismissal'
+         : kind === 'delayed_opening' ? 'Delayed opening'
+         : kind === 'weekend' ? 'Weekend'
+         : kind === 'unknown' ? 'Beyond the published calendar'
+         : 'Normal full day';
+  }
+
+  function renderCalendar() {
+    const eng = engine();
+    const grid = el('cal-grid');
+    if (!eng || !grid) return;
+    if (!calMonth) calMonth = E.anchor(eng.today().getUTCFullYear(),
+                                       eng.today().getUTCMonth() + 1, 1);
+
+    el('cal-title').textContent = MONTHS[calMonth.getUTCMonth()] + ' ' + calMonth.getUTCFullYear();
+    grid.innerHTML = '';
+
+    const school = schoolIds.length ? schoolById(schoolIds[0]) : null;
+    const todayKey = E.isoOf(eng.today());
+    const daysInMonth = new Date(Date.UTC(calMonth.getUTCFullYear(),
+                                          calMonth.getUTCMonth() + 1, 0)).getUTCDate();
+
+    // Pad so the 1st lands under its own weekday.
+    for (let i = 0; i < calMonth.getUTCDay(); i++) {
+      const blank = document.createElement('div');
+      blank.className = 'cal-cell blank';
+      grid.appendChild(blank);
+    }
+
+    for (let d = 1; d <= daysInMonth; d++) {
+      const date = E.anchor(calMonth.getUTCFullYear(), calMonth.getUTCMonth() + 1, d);
+      const key = E.isoOf(date);
+      const info = eng.dayInfo(date, school);
+
+      const cell = document.createElement('button');
+      cell.type = 'button';
+      cell.className = 'cal-cell'
+        + (info.kind === 'weekend' ? ' weekend' : '')
+        + (key === todayKey ? ' today' : '')
+        + (key === calPicked ? ' picked' : '');
+      cell.setAttribute('aria-label',
+        E.dateLong(date) + ', ' + kindLabel(info.kind) + (info.reason ? ', ' + info.reason : ''));
+
+      const num = document.createElement('span');
+      num.className = 'cal-num';
+      num.textContent = String(d);
+      cell.appendChild(num);
+
+      const dot = document.createElement('i');
+      dot.className = 'cal-dot ' + dotClass(info.kind);
+      cell.appendChild(dot);
+
+      cell.addEventListener('click', () => {
+        calPicked = (calPicked === key) ? null : key;
+        renderCalendar();
+      });
+      grid.appendChild(cell);
+    }
+
+    renderCalendarDetail(eng, school);
+  }
+
+  function renderCalendarDetail(eng, school) {
+    const box = el('cal-detail');
+    if (!box) return;
+    box.innerHTML = '';
+    if (!calPicked) return;
+
+    const date = E.fromISO(calPicked);
+    if (!date) return;
+    const info = eng.dayInfo(date, school);
+    const entries = eng.entriesOn(date, school);
+
+    const card = document.createElement('div');
+    card.className = 'cal-detail';
+
+    const h = document.createElement('h3');
+    h.textContent = E.dateLong(date);
+    card.appendChild(h);
+
+    const k = document.createElement('p');
+    k.className = 'kind';
+    k.textContent = kindLabel(info.kind);
+    card.appendChild(k);
+
+    if (!entries.length) {
+      const p = document.createElement('p');
+      p.className = 'none';
+      p.textContent = 'Nothing on the calendar for this day.';
+      card.appendChild(p);
+    } else {
+      const ul = document.createElement('ul');
+      for (const e of entries) {
+        const li = document.createElement('li');
+        li.textContent = e.title;
+        ul.appendChild(li);
+      }
+      card.appendChild(ul);
+    }
+    box.appendChild(card);
+  }
+
+  function showCalendar() {
+    const eng = engine();
+    if (eng && !eng.publishesSchoolSchedule) {
+      // Nothing to browse, so say why rather than showing an empty month.
+      answerFromRules('what is on the calendar');
+      return;
+    }
+    calPicked = null;
+    el('thread').hidden = true;
+    el('composer').hidden = true;
+    el('calendar-view').hidden = false;
+    renderCalendar();
+    window.scrollTo(0, 0);
+  }
+
+  function hideCalendar() {
+    const v = el('calendar-view');
+    if (!v || v.hidden) return;
+    v.hidden = true;
+    el('thread').hidden = false;
+    el('composer').hidden = false;
+  }
+
+  function shiftMonth(by) {
+    if (!calMonth) return;
+    calMonth = E.anchor(calMonth.getUTCFullYear(), calMonth.getUTCMonth() + 1 + by, 1);
+    calPicked = null;
+    renderCalendar();
+  }
+
+  const wayCal = el('way-calendar');
+  if (wayCal) wayCal.addEventListener('click', showCalendar);
+  const calPrev = el('cal-prev');
+  if (calPrev) calPrev.addEventListener('click', () => shiftMonth(-1));
+  const calNext = el('cal-next');
+  if (calNext) calNext.addEventListener('click', () => shiftMonth(1));
 
   // Each school's checkbox wires itself up in renderSettings.
 
