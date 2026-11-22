@@ -213,6 +213,20 @@
     for (const w of String(d.name || '').toLowerCase().split(/[^a-z0-9]+/)) {
       if (w.length > 2) this.stop.add(w);
     }
+
+    // Whether this district publishes its school-day calendar at all.
+    //
+    // Plenty do not. They publish events - board meetings, job fairs,
+    // graduations - and keep term dates in a PDF elsewhere. Conroe ISD is
+    // one: 66 entries and not a closing, break or early dismissal among
+    // them. A sample of twelve districts suggested about half are like this.
+    //
+    // It matters because without it every weekday looks like a normal school
+    // day, and "is there school tomorrow" is answered "yes, open" purely
+    // because the date is a Tuesday. That is a guess dressed as a fact, and
+    // the day it is wrong is a holiday.
+    this.publishesSchoolSchedule = (this.pack.calendar || [])
+      .some((e) => SCHEDULE_KINDS.indexOf(e.kind) >= 0);
   }
 
   /**
@@ -569,6 +583,11 @@
 
   // ---------------------------------------------------------------- retrieval
 
+  // The kinds of entry that make a calendar a school calendar rather than a
+  // list of events. Mirrors AnswerEngine.scheduleKinds in the iPhone app.
+  const SCHEDULE_KINDS = ['closed', 'break', 'early_dismissal', 'single_session',
+                          'delayed_opening', 'no_school_students', 'first_day', 'last_day'];
+
   const STOP = new Set(('what when where who how why is are do does did the a an my our i we you to for of in on at ' +
     'it its be can could should would will there their and or if about from me kid kids child children son daughter ' +
     'school schools district please tell').split(' '));
@@ -717,7 +736,24 @@
   const MULTI_DAY_SUBJECT =
     /(?:^|[^a-z0-9])(days? off|holidays?|closings?|closures?|no school|half days?|early dismissals?|single sessions?|late starts?|delayed openings?|snow days?)(?:[^a-z0-9]|$)/;
 
+  /**
+   * What to say when the district simply has not published the thing being
+   * asked about. Naming the district makes clear it is them and not the app,
+   * and the link is where the answer actually lives.
+   */
+  AnswerEngine.prototype.noScheduleAnswer = function (intent) {
+    let t = `${this.districtShort} publishes events to its calendar but not its ` +
+            'school-day schedule, so I don\'t know its closings, breaks or early dismissals.';
+    if (this.urls.calendar) {
+      t += '\n\nThose are usually on the district\'s own calendar page.';
+    }
+    return mk(t, intent, 'no_schedule', [this.urls.calendar, this.urls.site], 0.6);
+  };
+
   AnswerEngine.prototype.rSchoolStatus = function (ctx) {
+    // Without a published schedule, every weekday looks like a normal school
+    // day, so this would answer "yes, open" on Thanksgiving.
+    if (!this.publishesSchoolSchedule) return this.noScheduleAnswer('school_status');
     if (!ctx.date && this.asksAboutSomeOtherDay(ctx.norm)) {
       return mk('I\'m not sure which day you mean. Try naming the date — ' +
                 '"is there school on December 24" — or ask about today or tomorrow.',
@@ -788,6 +824,7 @@
   };
 
   AnswerEngine.prototype.rDaySchedule = function (ctx) {
+    if (!this.publishesSchoolSchedule) return this.noScheduleAnswer('day_schedule');
     const asked = ctx.scheduleKind;
     const slot = ctx.date || { start: ctx.today, end: ctx.today, isRange: false, phrase: 'today' };
 
@@ -944,6 +981,7 @@
     }
 
     if (!cands.length) {
+      if (!this.publishesSchoolSchedule) return this.noScheduleAnswer('break_dates');
       return mk(`I couldn't find ${brk || 'that break'} on the published calendar.`,
                 'break_dates', 'none', [this.urls.calendar], 0.4);
     }
@@ -1019,6 +1057,7 @@
     const rows = [...byKey.values()].sort((a, b) => a.date.localeCompare(b.date));
 
     if (!rows.length) {
+      if (!this.publishesSchoolSchedule) return this.noScheduleAnswer('list_occurrences');
       return mk('Nothing like that is on the published calendar.',
                 'list_occurrences', 'none', [this.urls.calendar], 0.5);
     }

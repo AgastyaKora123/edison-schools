@@ -45,7 +45,7 @@ targets:
         INFOPLIST_KEY_BGTaskSchedulerPermittedIdentifiers: io.github.agastyakora123.schoolanswers.checkClosings
         GENERATE_INFOPLIST_FILE: YES
         PRODUCT_BUNDLE_IDENTIFIER: io.github.agastyakora123.schoolanswers
-        TARGETED_DEVICE_FAMILY: "1,2"
+        TARGETED_DEVICE_FAMILY: "1"
 
   EdisonParentTests:
     type: bundle.unit-test

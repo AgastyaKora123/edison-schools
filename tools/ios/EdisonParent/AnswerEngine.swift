@@ -50,6 +50,27 @@ struct AnswerEngine {
     /// rather than written down with one district's name in it.
     let stop: Set<String>
 
+    /// Whether this district publishes its school-day calendar at all.
+    ///
+    /// Plenty of them do not. They publish events - board meetings, job
+    /// fairs, graduations - and keep term dates in a PDF somewhere else.
+    /// Conroe ISD is one: 66 entries and not a single closing, break or
+    /// early dismissal among them. A sample of twelve districts suggested
+    /// about half are like this.
+    ///
+    /// It matters because without it "is there school tomorrow" is answered
+    /// "yes, open" purely because the date is a Tuesday. That is a guess
+    /// dressed up as a fact, and the day it is wrong is a holiday - the exact
+    /// day a parent most needs it right.
+    let publishesSchoolSchedule: Bool
+
+    /// The kinds of entry that make a calendar a school calendar rather than
+    /// a list of events.
+    static let scheduleKinds: Set<String> = [
+        "closed", "break", "early_dismissal", "single_session",
+        "delayed_opening", "no_school_students", "first_day", "last_day"
+    ]
+
     init(pack: KnowledgePack, rules: Rules) {
         self.pack = pack
         self.rules = rules
@@ -81,6 +102,23 @@ struct AnswerEngine {
             words.insert(w)
         }
         self.stop = words
+
+        self.publishesSchoolSchedule = pack.calendar.contains {
+            Self.scheduleKinds.contains($0.kind)
+        }
+    }
+
+    /// What to say when the district simply has not published the thing being
+    /// asked about. Naming the district makes clear it is them and not the
+    /// app, and the link is where the answer actually lives.
+    func noScheduleAnswer(_ intent: String) -> Answer {
+        var t = "\(districtShort) publishes events to its calendar but not its school-day schedule, "
+        t += "so I don't know its closings, breaks or early dismissals."
+        if !links.calendar.isEmpty {
+            t += "\n\nThose are usually on the district's own calendar page."
+        }
+        return make(t, intent: intent, kind: "no_schedule",
+                    sources: [links.calendar, links.site], confidence: 0.6)
     }
 
     /// "Edison Township Public Schools" -> "Edison". "Conroe ISD" -> "Conroe".
@@ -779,6 +817,10 @@ struct AnswerEngine {
                         sources: [links.calendar], confidence: 0.2)
         }
 
+        // Without a published schedule, every weekday looks like a normal
+        // school day, so this would answer "yes, open" on Thanksgiving.
+        guard publishesSchoolSchedule else { return noScheduleAnswer("school_status") }
+
         let slot = ctx.date ?? DateSlot(start: ctx.today, end: ctx.today, isRange: false, phrase: "today")
         let label = ctx.school?.name ?? allSchoolsLabel
         let isAre = ctx.school != nil ? "is" : "are"
@@ -858,6 +900,7 @@ struct AnswerEngine {
 
     func resolveDaySchedule(_ ctx: Context) -> Answer {
         let asked = ctx.scheduleKind
+        guard publishesSchoolSchedule else { return noScheduleAnswer("day_schedule") }
         let slot = ctx.date ?? DateSlot(start: ctx.today, end: ctx.today, isRange: false, phrase: "today")
 
         if slot.isRange {
@@ -1055,6 +1098,7 @@ struct AnswerEngine {
         }
 
         guard !cands.isEmpty else {
+            if !publishesSchoolSchedule { return noScheduleAnswer("break_dates") }
             return make("I couldn't find \(brk ?? "that break") on the published calendar.",
                         intent: "break_dates", kind: "none",
                         sources: [links.calendar], confidence: 0.4)
@@ -1171,6 +1215,7 @@ struct AnswerEngine {
         let rows = byKey.values.sorted { $0.date < $1.date }
 
         guard !rows.isEmpty else {
+            if !publishesSchoolSchedule { return noScheduleAnswer("list_occurrences") }
             return make("Nothing like that is on the published calendar.",
                         intent: "list_occurrences", kind: "none",
                         sources: [links.calendar], confidence: 0.5)

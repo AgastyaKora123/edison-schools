@@ -988,8 +988,52 @@ function Test-AsksForAll {
             [regex]::IsMatch($Norm, $script:SpanRe))
 }
 
+function Test-PublishesSchoolSchedule {
+    <#
+      Whether this district publishes its school-day calendar at all.
+
+      Plenty do not. They publish events - board meetings, job fairs,
+      graduations - and keep term dates in a PDF elsewhere. Conroe ISD is
+      one: 66 entries and not a closing, break or early dismissal among them.
+      A sample of twelve districts suggested about half are like this.
+
+      Without this, every weekday looks like a normal school day and "is
+      there school tomorrow" is answered "yes, open" purely because the date
+      is a Tuesday - a guess dressed as a fact, and wrong on exactly the
+      holiday a parent needed it right.
+
+      It never fires for a district ingested in full, which is the only kind
+      this engine is pointed at. It is here so the three engines stay
+      identical; they diverged once and it cost a day.
+    #>
+    param($Pack)
+    $kinds = @('closed', 'break', 'early_dismissal', 'single_session',
+               'delayed_opening', 'no_school_students', 'first_day', 'last_day')
+    foreach ($e in @($Pack.calendar)) {
+        if ($kinds -contains $e.kind) { return $true }
+    }
+    return $false
+}
+
+function New-NoScheduleAnswer {
+    param($Pack, [string] $Intent)
+    $info = Get-DistrictInfo -Pack $Pack
+    $t = ("{0} publishes events to its calendar but not its school-day schedule, " +
+          "so I don't know its closings, breaks or early dismissals.") -f $info.Short
+    if ($info.Calendar) {
+        $t += "`n`nThose are usually on the district's own calendar page."
+    }
+    return New-Answer -Text $t -Intent $Intent -Kind 'no_schedule' -Confidence 0.6 `
+                      -Sources @($info.Calendar, $info.Site)
+}
+
 function Invoke-Resolver-SchoolStatus {
     param($Pack, $Rules, $Ctx)
+    # Without a published schedule every weekday looks like a normal school
+    # day, so this would answer "yes, open" on Thanksgiving.
+    if (-not (Test-PublishesSchoolSchedule -Pack $Pack)) {
+        return New-NoScheduleAnswer -Pack $Pack -Intent 'school_status'
+    }
     $slot = $Ctx.Date
     if (-not $slot) {
         if (Test-AsksAboutSomeOtherDay -Norm $Ctx.Norm -Rules $Rules) {
@@ -1111,6 +1155,9 @@ function Get-BellLines {
 
 function Invoke-Resolver-DaySchedule {
     param($Pack, $Rules, $Ctx)
+    if (-not (Test-PublishesSchoolSchedule -Pack $Pack)) {
+        return New-NoScheduleAnswer -Pack $Pack -Intent 'day_schedule'
+    }
     $asked = $Ctx.ScheduleKind
     $slot  = $Ctx.Date
     if (-not $slot) { $slot = New-DateSlot $Ctx.Today $Ctx.Today 'day' 'today' }
@@ -1319,6 +1366,9 @@ function Invoke-Resolver-BreakDates {
     }
 
     if (-not @($cands).Count) {
+        if (-not (Test-PublishesSchoolSchedule -Pack $Pack)) {
+            return New-NoScheduleAnswer -Pack $Pack -Intent 'break_dates'
+        }
         return New-Answer -Text ("I couldn't find {0} on the published calendar." -f $(if ($brk) { $brk } else { 'that break' })) `
                           -Intent 'break_dates' -Kind 'none' -Confidence 0.4 `
                           -Sources @((Get-DistrictInfo $Pack).Calendar)
@@ -1409,6 +1459,9 @@ function Invoke-Resolver-ListOccurrences {
     foreach ($v in $byKey.Values) { [void]$rows.Add($v) }
 
     if (-not $rows.Count) {
+        if (-not (Test-PublishesSchoolSchedule -Pack $Pack)) {
+            return New-NoScheduleAnswer -Pack $Pack -Intent 'list_occurrences'
+        }
         return New-Answer -Text "Nothing like that is on the published calendar." `
                           -Intent 'list_occurrences' -Kind 'none' -Confidence 0.5 `
                           -Sources @((Get-DistrictInfo $Pack).Calendar)

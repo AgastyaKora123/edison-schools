@@ -196,4 +196,40 @@ final class AnswerEngineTests: XCTestCase {
             XCTAssertFalse(a.text.isEmpty, "empty answer for '\(q.prefix(20))'")
         }
     }
+
+    // MARK: - Districts that publish events but not a school calendar
+
+    /// Plenty of districts publish board meetings and graduations to this
+    /// feed and keep their term dates in a PDF elsewhere. Conroe ISD is one:
+    /// 66 entries, not one of them a closing or a break.
+    ///
+    /// Without this, every weekday looks like a normal school day and the app
+    /// answers "yes, open" on Thanksgiving - confident, specific and wrong on
+    /// precisely the day a parent needs it right.
+    func testDistrictWithNoPublishedScheduleSaysSoInsteadOfGuessing() throws {
+        let engine = try loadEngine()
+        XCTAssertTrue(engine.publishesSchoolSchedule,
+                      "The bundled district does publish one; this test strips it.")
+
+        var pack = engine.pack
+        pack.calendar = pack.calendar.filter { !AnswerEngine.scheduleKinds.contains($0.kind) }
+        let stripped = AnswerEngine(pack: pack, rules: engine.rules)
+        XCTAssertFalse(stripped.publishesSchoolSchedule)
+
+        // Bell times are deliberately not in this list. They come from the
+        // district's hours page, not its calendar, and a district read at
+        // runtime has none either way - so that question already answers
+        // "I don't know" without any help from this guard. Asserting on it
+        // here would be testing a combination that cannot occur: a district
+        // with bell times but no calendar.
+        for q in ["is there school tomorrow",
+                  "when is spring break",
+                  "list every early dismissal"] {
+            let a = stripped.answer(q, today: Date())
+            XCTAssertTrue(a.text.contains("not its school-day schedule"),
+                          "'\(q)' should say the district does not publish it. Got: \(a.text)")
+            XCTAssertFalse(a.text.lowercased().contains("normal full day"),
+                           "'\(q)' must not claim a school day it cannot know about. Got: \(a.text)")
+        }
+    }
 }
