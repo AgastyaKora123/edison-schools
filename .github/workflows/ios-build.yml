@@ -102,9 +102,17 @@ jobs:
             grep -E "(error|warning): " build.log 2>/dev/null | sed 's|.*/tools/ios/||' | sort -u | head -40 || echo "(none)"
             echo ""
             echo "--- checks that failed ---"
-            # Xcode writes one line per failing check; the file and line are
-            # in it, which is all that is needed to go and fix the thing.
-            grep -E "error: -\[|XCTAssert|failed \(" test.log 2>/dev/null | sed 's|.*/tools/ios/||' | sort -u | head -60 || echo "(none)"
+            # The contract test reports every failing case - the question, what
+            # was expected, what came back, and which resolver handled it. That
+            # detail spans several lines, so grep alone would keep only the
+            # first one and throw away the part worth reading. Print the whole
+            # block, from the failure line to the end of that test case.
+            if grep -q "error: -\[" test.log 2>/dev/null; then
+              sed -n '/error: -\[/,/^[[:space:]]*Test Case .*failed (/p' test.log \
+                | sed 's|.*/tools/ios/||' | head -400
+            else
+              echo "(none)"
+            fi
             echo ""
             echo "--- totals ---"
             grep -E "Executed [0-9]+ test" test.log 2>/dev/null | tail -3 || echo "(tests did not run)"

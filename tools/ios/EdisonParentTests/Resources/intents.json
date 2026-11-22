@@ -1,6 +1,26 @@
 {
   "rulesVersion": 1,
-  "_comment": "Shared lexicon for the Edison Parent answer engine. Loaded identically by the PowerShell reference engine (engine/Answer-Query.ps1) and the Swift engine (ios/EdisonParent/AnswerEngine.swift). Keep the two in sync: tests/questions.jsonl is the contract.",
+  "_comment": "Shared lexicon for the school answer engine. Loaded identically by the PowerShell reference engine (engine/Answer-Query.ps1), the browser engine (web/engine.js) and the Swift engine (ios/EdisonParent/AnswerEngine.swift). Keep them in sync: tests/questions.jsonl is the contract.",
+
+  "_eventKinds": "What a calendar entry means. The first rule that matches wins, so the specific ones come first. This used to live in the collection script, which meant only the collection could read a calendar; the app now reads calendars itself for districts it has no stored copy of, and both have to agree about what 'Early Dismissal' means. One copy, here.",
+  "eventKinds": [
+    { "kind": "delayed_opening",    "pattern": "delayed\\s+opening|late\\s+start|delayed\\s+start|2\\s*hour\\s+delay" },
+    { "kind": "early_dismissal",    "pattern": "early\\s+dismissal|early\\s+release|minimum\\s+day" },
+    { "kind": "single_session",     "pattern": "single\\s+session" },
+    { "kind": "break",              "pattern": "\\b(recess|break)\\b" },
+    { "kind": "no_school_students", "pattern": "no\\s+school\\s+for\\s+students|students?\\s+do\\s+not\\s+report|staff\\s+(only|development|in-?service)|professional\\s+development\\s+day" },
+    { "kind": "closed",             "pattern": "schools?\\s+closed|school\\s+closed|closed\\b|no\\s+school" },
+    { "kind": "last_day",           "pattern": "last\\s+day\\s+of\\s+school" },
+    { "kind": "first_day",          "pattern": "first\\s+day\\s+of\\s+school|schools?\\s+open\\b" }
+  ],
+
+  "_titlePrefixes": "District house styles that add nothing: 'Districtwide: Early Dismissal' is an early dismissal.",
+  "titlePrefixes": [
+    "^\\s*districtwide\\s*:\\s*",
+    "^\\s*district\\s*wide\\s*:\\s*",
+    "^\\s*(MON|TUE|TUES|WED|THU|THUR|THURS|FRI|SAT|SUN)\\s*[-–]\\s*",
+    "^\\s*\\d{1,2}:\\d{2}\\s*(am|pm)\\s*[-–]\\s*"
+  ],
 
   "dateWords": {
     "today":        { "offsetDays": 0 },
@@ -192,9 +212,11 @@
       "priority": 95,
       "_note": "'List early dismissal days' used to match day_schedule on the words 'early dismissal' and get answered as 'is TODAY an early dismissal' - a flat no. Asking for every one of something is its own question.",
       "_treadmill": "Each entry here covers one way of asking and misses five. That is the limit of rules, and the reason Schoolo (the sample capability, with the app's lookups as tools) handles anything this misses rather than this list growing forever.",
+      "_countingNamesItsSubject": "A bare '^how many' also matched 'how many students go to edison high' and 'how many schools are in the district', and answered both with the calendar. Counting means the calendar only when the thing being counted is on it, so the counting pattern has to name what is counted. The engine's own routing guard is the backstop for phrasings this pattern misses.",
       "requireAny": ["list", "all", "every", "show me", "what are", "when are", "give me", "how many", "left", "remaining", "rest of"],
       "patterns": [
         "^(list|show|give)\\b",
+        "\\b(how many|how much|how often|number of|count of)\\b.{0,30}(day|dismissal|closing|closure|holiday|session|recess|break|opening|late start)",
         "^(what|when) (are|is)\\b.{0,20}(all|the)\\b",
         "\\b(all|every)\\b.{0,25}(early dismissal|half day|single session|day off|days off|closing|closure|holiday|break|recess|delayed opening)",
         "(early dismissal|half day|single session|day off|days off|closing|holiday|break|recess|delayed opening)s?\\b.{0,20}\\b(this year|for the year|left|remaining|coming up)"
