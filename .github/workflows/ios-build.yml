@@ -164,6 +164,10 @@ jobs:
           {
             echo "iPhone app build - $(date -u '+%Y-%m-%d %H:%M UTC')"
             echo "Xcode: $(xcodebuild -version | head -1)"
+            # Which commit this report is about. Without it, a run that never
+            # got a Mac at all leaves the PREVIOUS report sitting here, and
+            # yesterday's success reads as today's.
+            echo "Reporting on: ${GITHUB_SHA:0:7}"
             echo ""
             if grep -q "BUILD SUCCEEDED" build.log 2>/dev/null; then
               echo "COMPILED: yes"
