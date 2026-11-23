@@ -70,6 +70,12 @@ struct Deck: Codable, Identifiable, Hashable {
     var created: Date = Date()
     var cards: [Card] = []
 
+    /// Set when this deck was copied from one of the ready-made sets, so the
+    /// picker can show which have been taken already. Nil for somebody's own
+    /// notes. Optional on purpose: decks saved by 1.2 have no such key, and
+    /// an optional one decodes as nil rather than throwing away the file.
+    var packId: String? = nil
+
     /// The cards waiting today, hardest first.
     ///
     /// Low boxes first means the things being got wrong come up while there

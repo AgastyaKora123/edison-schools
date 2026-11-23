@@ -17,6 +17,7 @@ struct PracticeView: View {
 
     @EnvironmentObject private var practice: PracticeStore
     @State private var showNew = false
+    @State private var showPacks = false
 
     var body: some View {
         Group {
@@ -35,6 +36,7 @@ struct PracticeView: View {
             }
         }
         .sheet(isPresented: $showNew) { NewDeckView().environmentObject(practice) }
+        .sheet(isPresented: $showPacks) { PackPickerView().environmentObject(practice) }
     }
 
     private var empty: some View {
@@ -45,6 +47,11 @@ struct PracticeView: View {
         } actions: {
             Button("Add your notes") { showNew = true }
                 .buttonStyle(.borderedProminent)
+            // Somebody who opens this the night before a test with nothing
+            // written down needs a way in that is not "go and write notes".
+            if !PackLibrary.all.isEmpty {
+                Button("Pick a ready-made set") { showPacks = true }
+            }
         }
     }
 
@@ -59,6 +66,16 @@ struct PracticeView: View {
             }
             .onDelete { idx in
                 for i in idx { practice.remove(practice.decks[i]) }
+            }
+
+            if !PackLibrary.all.isEmpty {
+                Section {
+                    Button {
+                        showPacks = true
+                    } label: {
+                        Label("Add a ready-made set", systemImage: "square.stack.3d.up")
+                    }
+                }
             }
 
             Section {
@@ -273,5 +290,92 @@ struct StudyView: View {
         if !correct { queue.append(card) }
         done += 1
         showingBack = false
+    }
+}
+
+// MARK: - The ready-made sets
+
+/// New in 1.3. Picking one copies it into this person's own decks - see the
+/// note at the top of PracticePacks.swift for why it is a copy and not a
+/// reference.
+struct PackPickerView: View {
+
+    @EnvironmentObject private var practice: PracticeStore
+    @Environment(\.dismiss) private var dismiss
+
+    private var packs: [PracticePack] { PackLibrary.all }
+
+    private func alreadyAdded(_ pack: PracticePack) -> Bool {
+        practice.decks.contains { $0.packId == pack.id }
+    }
+
+    var body: some View {
+        NavigationStack {
+            Group {
+                if packs.isEmpty {
+                    ContentUnavailableView {
+                        Label("No ready-made sets", systemImage: "tray")
+                    } description: {
+                        Text("This copy of the app did not ship with any. Your own notes still work.")
+                    }
+                } else {
+                    List {
+                        ForEach(packs) { pack in
+                            Button { add(pack) } label: { row(pack) }
+                                .disabled(alreadyAdded(pack))
+                        }
+
+                        Section {
+                            Text("Adding a set copies it into your own decks. Your progress is then yours and stays put, even when the app is updated.")
+                                .font(.caption)
+                                .foregroundStyle(.secondary)
+                        }
+                    }
+                }
+            }
+            .navigationTitle("Ready-made sets")
+            .navigationBarTitleDisplayMode(.inline)
+            .toolbar {
+                ToolbarItem(placement: .confirmationAction) {
+                    Button("Done") { dismiss() }
+                }
+            }
+        }
+    }
+
+    private func row(_ pack: PracticePack) -> some View {
+        let added = alreadyAdded(pack)
+        return VStack(alignment: .leading, spacing: 3) {
+            HStack(alignment: .firstTextBaseline) {
+                Text(pack.subject.uppercased())
+                    .font(.caption2.weight(.heavy))
+                    .kerning(1.2)
+                    .foregroundStyle(.secondary)
+                Spacer()
+                if added {
+                    Label("Added", systemImage: "checkmark")
+                        .font(.caption2)
+                        .foregroundStyle(.secondary)
+                        .labelStyle(.titleAndIcon)
+                }
+            }
+            Text(pack.name)
+                .font(.system(.headline, design: .serif))
+                .foregroundStyle(added ? .secondary : .primary)
+            Text(pack.note)
+                .font(.caption)
+                .foregroundStyle(.secondary)
+            Text("\(pack.cards.count) cards")
+                .font(.caption2)
+                .foregroundStyle(.tertiary)
+        }
+        .padding(.vertical, 3)
+        .multilineTextAlignment(.leading)
+    }
+
+    private func add(_ pack: PracticePack) {
+        guard !alreadyAdded(pack) else { return }
+        practice.add(PackLibrary.deck(from: pack))
+        dismiss()
     }
 }

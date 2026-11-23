@@ -168,6 +168,9 @@ enum ClosingNotifier {
             let schoolName = UserDefaults.standard.string(forKey: "defaultSchoolId")
                 .flatMap { id in s.pack?.schools.first { $0.id == id }?.name }
             await notify(new, schoolName: schoolName)
+            // The same run tops up the night-before reminders, so they keep
+            // going for someone who has not opened the app in a fortnight.
+            await s.rescheduleDayBeforeReminders()
         }
 
         task.expirationHandler = { work.cancel() }

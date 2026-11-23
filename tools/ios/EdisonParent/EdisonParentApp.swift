@@ -41,6 +41,11 @@ struct EdisonParentApp: App {
                     let new = await store.checkAlerts()
                     await ClosingNotifier.notify(new, schoolName: store.defaultSchoolName)
                     ClosingNotifier.scheduleNextCheck()
+                    // Planned days off are known months in advance, so hand
+                    // them to iOS as dated alarms now. They then fire even if
+                    // the app is never opened again, with no network and no
+                    // background refresh.
+                    await store.rescheduleDayBeforeReminders()
                 }
         }
         .onChange(of: scenePhase) { _, phase in
@@ -49,6 +54,9 @@ struct EdisonParentApp: App {
             Task {
                 let new = await store.checkAlerts()
                 await ClosingNotifier.notify(new, schoolName: store.defaultSchoolName)
+                // Reminders that have already fired leave gaps at the end of
+                // the queue; this tops it back up.
+                await store.rescheduleDayBeforeReminders()
             }
         }
     }

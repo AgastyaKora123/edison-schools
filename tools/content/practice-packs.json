@@ -1,0 +1,710 @@
+{
+    "version":  1,
+    "note":  "Ready-made practice sets. Written for this app, so there is no licence on any of it. Safe to edit by hand: each card is a question and an answer, and the app reads whatever is here.",
+    "packs":  [
+                  {
+                      "id":  "times-tables",
+                      "subject":  "Maths",
+                      "name":  "Times tables, 6 to 12",
+                      "note":  "The half that actually needs learning. Each pair once.",
+                      "cards":  [
+                                    {
+                                        "q":  "6 × 6",
+                                        "a":  "36"
+                                    },
+                                    {
+                                        "q":  "6 × 7",
+                                        "a":  "42"
+                                    },
+                                    {
+                                        "q":  "6 × 8",
+                                        "a":  "48"
+                                    },
+                                    {
+                                        "q":  "6 × 9",
+                                        "a":  "54"
+                                    },
+                                    {
+                                        "q":  "6 × 10",
+                                        "a":  "60"
+                                    },
+                                    {
+                                        "q":  "6 × 11",
+                                        "a":  "66"
+                                    },
+                                    {
+                                        "q":  "6 × 12",
+                                        "a":  "72"
+                                    },
+                                    {
+                                        "q":  "7 × 7",
+                                        "a":  "49"
+                                    },
+                                    {
+                                        "q":  "7 × 8",
+                                        "a":  "56"
+                                    },
+                                    {
+                                        "q":  "7 × 9",
+                                        "a":  "63"
+                                    },
+                                    {
+                                        "q":  "7 × 10",
+                                        "a":  "70"
+                                    },
+                                    {
+                                        "q":  "7 × 11",
+                                        "a":  "77"
+                                    },
+                                    {
+                                        "q":  "7 × 12",
+                                        "a":  "84"
+                                    },
+                                    {
+                                        "q":  "8 × 8",
+                                        "a":  "64"
+                                    },
+                                    {
+                                        "q":  "8 × 9",
+                                        "a":  "72"
+                                    },
+                                    {
+                                        "q":  "8 × 10",
+                                        "a":  "80"
+                                    },
+                                    {
+                                        "q":  "8 × 11",
+                                        "a":  "88"
+                                    },
+                                    {
+                                        "q":  "8 × 12",
+                                        "a":  "96"
+                                    },
+                                    {
+                                        "q":  "9 × 9",
+                                        "a":  "81"
+                                    },
+                                    {
+                                        "q":  "9 × 10",
+                                        "a":  "90"
+                                    },
+                                    {
+                                        "q":  "9 × 11",
+                                        "a":  "99"
+                                    },
+                                    {
+                                        "q":  "9 × 12",
+                                        "a":  "108"
+                                    },
+                                    {
+                                        "q":  "10 × 10",
+                                        "a":  "100"
+                                    },
+                                    {
+                                        "q":  "10 × 11",
+                                        "a":  "110"
+                                    },
+                                    {
+                                        "q":  "10 × 12",
+                                        "a":  "120"
+                                    },
+                                    {
+                                        "q":  "11 × 11",
+                                        "a":  "121"
+                                    },
+                                    {
+                                        "q":  "11 × 12",
+                                        "a":  "132"
+                                    },
+                                    {
+                                        "q":  "12 × 12",
+                                        "a":  "144"
+                                    }
+                                ]
+                  },
+                  {
+                      "id":  "states-capitals",
+                      "subject":  "Geography",
+                      "name":  "US states and capitals",
+                      "note":  "All fifty. The ones that catch people out are the states whose biggest city is not the capital.",
+                      "cards":  [
+                                    {
+                                        "q":  "Capital of Alabama",
+                                        "a":  "Montgomery"
+                                    },
+                                    {
+                                        "q":  "Capital of Alaska",
+                                        "a":  "Juneau"
+                                    },
+                                    {
+                                        "q":  "Capital of Arizona",
+                                        "a":  "Phoenix"
+                                    },
+                                    {
+                                        "q":  "Capital of Arkansas",
+                                        "a":  "Little Rock"
+                                    },
+                                    {
+                                        "q":  "Capital of California",
+                                        "a":  "Sacramento"
+                                    },
+                                    {
+                                        "q":  "Capital of Colorado",
+                                        "a":  "Denver"
+                                    },
+                                    {
+                                        "q":  "Capital of Connecticut",
+                                        "a":  "Hartford"
+                                    },
+                                    {
+                                        "q":  "Capital of Delaware",
+                                        "a":  "Dover"
+                                    },
+                                    {
+                                        "q":  "Capital of Florida",
+                                        "a":  "Tallahassee"
+                                    },
+                                    {
+                                        "q":  "Capital of Georgia",
+                                        "a":  "Atlanta"
+                                    },
+                                    {
+                                        "q":  "Capital of Hawaii",
+                                        "a":  "Honolulu"
+                                    },
+                                    {
+                                        "q":  "Capital of Idaho",
+                                        "a":  "Boise"
+                                    },
+                                    {
+                                        "q":  "Capital of Illinois",
+                                        "a":  "Springfield"
+                                    },
+                                    {
+                                        "q":  "Capital of Indiana",
+                                        "a":  "Indianapolis"
+                                    },
+                                    {
+                                        "q":  "Capital of Iowa",
+                                        "a":  "Des Moines"
+                                    },
+                                    {
+                                        "q":  "Capital of Kansas",
+                                        "a":  "Topeka"
+                                    },
+                                    {
+                                        "q":  "Capital of Kentucky",
+                                        "a":  "Frankfort"
+                                    },
+                                    {
+                                        "q":  "Capital of Louisiana",
+                                        "a":  "Baton Rouge"
+                                    },
+                                    {
+                                        "q":  "Capital of Maine",
+                                        "a":  "Augusta"
+                                    },
+                                    {
+                                        "q":  "Capital of Maryland",
+                                        "a":  "Annapolis"
+                                    },
+                                    {
+                                        "q":  "Capital of Massachusetts",
+                                        "a":  "Boston"
+                                    },
+                                    {
+                                        "q":  "Capital of Michigan",
+                                        "a":  "Lansing"
+                                    },
+                                    {
+                                        "q":  "Capital of Minnesota",
+                                        "a":  "Saint Paul"
+                                    },
+                                    {
+                                        "q":  "Capital of Mississippi",
+                                        "a":  "Jackson"
+                                    },
+                                    {
+                                        "q":  "Capital of Missouri",
+                                        "a":  "Jefferson City"
+                                    },
+                                    {
+                                        "q":  "Capital of Montana",
+                                        "a":  "Helena"
+                                    },
+                                    {
+                                        "q":  "Capital of Nebraska",
+                                        "a":  "Lincoln"
+                                    },
+                                    {
+                                        "q":  "Capital of Nevada",
+                                        "a":  "Carson City"
+                                    },
+                                    {
+                                        "q":  "Capital of New Hampshire",
+                                        "a":  "Concord"
+                                    },
+                                    {
+                                        "q":  "Capital of New Jersey",
+                                        "a":  "Trenton"
+                                    },
+                                    {
+                                        "q":  "Capital of New Mexico",
+                                        "a":  "Santa Fe"
+                                    },
+                                    {
+                                        "q":  "Capital of New York",
+                                        "a":  "Albany"
+                                    },
+                                    {
+                                        "q":  "Capital of North Carolina",
+                                        "a":  "Raleigh"
+                                    },
+                                    {
+                                        "q":  "Capital of North Dakota",
+                                        "a":  "Bismarck"
+                                    },
+                                    {
+                                        "q":  "Capital of Ohio",
+                                        "a":  "Columbus"
+                                    },
+                                    {
+                                        "q":  "Capital of Oklahoma",
+                                        "a":  "Oklahoma City"
+                                    },
+                                    {
+                                        "q":  "Capital of Oregon",
+                                        "a":  "Salem"
+                                    },
+                                    {
+                                        "q":  "Capital of Pennsylvania",
+                                        "a":  "Harrisburg"
+                                    },
+                                    {
+                                        "q":  "Capital of Rhode Island",
+                                        "a":  "Providence"
+                                    },
+                                    {
+                                        "q":  "Capital of South Carolina",
+                                        "a":  "Columbia"
+                                    },
+                                    {
+                                        "q":  "Capital of South Dakota",
+                                        "a":  "Pierre"
+                                    },
+                                    {
+                                        "q":  "Capital of Tennessee",
+                                        "a":  "Nashville"
+                                    },
+                                    {
+                                        "q":  "Capital of Texas",
+                                        "a":  "Austin"
+                                    },
+                                    {
+                                        "q":  "Capital of Utah",
+                                        "a":  "Salt Lake City"
+                                    },
+                                    {
+                                        "q":  "Capital of Vermont",
+                                        "a":  "Montpelier"
+                                    },
+                                    {
+                                        "q":  "Capital of Virginia",
+                                        "a":  "Richmond"
+                                    },
+                                    {
+                                        "q":  "Capital of Washington",
+                                        "a":  "Olympia"
+                                    },
+                                    {
+                                        "q":  "Capital of West Virginia",
+                                        "a":  "Charleston"
+                                    },
+                                    {
+                                        "q":  "Capital of Wisconsin",
+                                        "a":  "Madison"
+                                    },
+                                    {
+                                        "q":  "Capital of Wyoming",
+                                        "a":  "Cheyenne"
+                                    }
+                                ]
+                  },
+                  {
+                      "id":  "science-words",
+                      "subject":  "Science",
+                      "name":  "Science words",
+                      "note":  "The words that come up again and again in middle-school science.",
+                      "cards":  [
+                                    {
+                                        "q":  "Cell",
+                                        "a":  "The smallest unit of a living thing."
+                                    },
+                                    {
+                                        "q":  "Mitochondria",
+                                        "a":  "The part of a cell that releases energy from food."
+                                    },
+                                    {
+                                        "q":  "Nucleus",
+                                        "a":  "The part of a cell that holds its DNA."
+                                    },
+                                    {
+                                        "q":  "Chloroplast",
+                                        "a":  "The part of a plant cell where photosynthesis happens."
+                                    },
+                                    {
+                                        "q":  "Photosynthesis",
+                                        "a":  "How plants use light, water and carbon dioxide to make sugar."
+                                    },
+                                    {
+                                        "q":  "Respiration",
+                                        "a":  "How living things release energy from food, using oxygen."
+                                    },
+                                    {
+                                        "q":  "Osmosis",
+                                        "a":  "Water moving through a membrane, from where it is more dilute to where it is less."
+                                    },
+                                    {
+                                        "q":  "Diffusion",
+                                        "a":  "Particles spreading from where there are many to where there are few."
+                                    },
+                                    {
+                                        "q":  "Ecosystem",
+                                        "a":  "All the living things in an area, plus the non-living things they depend on."
+                                    },
+                                    {
+                                        "q":  "Producer",
+                                        "a":  "A living thing that makes its own food, like a plant."
+                                    },
+                                    {
+                                        "q":  "Consumer",
+                                        "a":  "A living thing that eats other living things."
+                                    },
+                                    {
+                                        "q":  "Decomposer",
+                                        "a":  "A living thing that breaks down dead material, like a fungus."
+                                    },
+                                    {
+                                        "q":  "Food web",
+                                        "a":  "A map of who eats whom in an ecosystem."
+                                    },
+                                    {
+                                        "q":  "Habitat",
+                                        "a":  "The place a living thing lives."
+                                    },
+                                    {
+                                        "q":  "Adaptation",
+                                        "a":  "A feature that helps a living thing survive where it lives."
+                                    },
+                                    {
+                                        "q":  "Natural selection",
+                                        "a":  "Living things with useful features survive and have more young, so those features spread."
+                                    },
+                                    {
+                                        "q":  "Gene",
+                                        "a":  "A length of DNA carrying one instruction."
+                                    },
+                                    {
+                                        "q":  "DNA",
+                                        "a":  "The molecule that carries the instructions for building a living thing."
+                                    },
+                                    {
+                                        "q":  "Trait",
+                                        "a":  "A characteristic, such as eye colour."
+                                    },
+                                    {
+                                        "q":  "Heredity",
+                                        "a":  "Traits being passed from parents to their young."
+                                    },
+                                    {
+                                        "q":  "Atom",
+                                        "a":  "The smallest particle of an element."
+                                    },
+                                    {
+                                        "q":  "Element",
+                                        "a":  "A substance made of only one kind of atom."
+                                    },
+                                    {
+                                        "q":  "Molecule",
+                                        "a":  "Two or more atoms joined together."
+                                    },
+                                    {
+                                        "q":  "Compound",
+                                        "a":  "A substance made of two or more different elements joined."
+                                    },
+                                    {
+                                        "q":  "Mixture",
+                                        "a":  "Two or more substances together but not chemically joined."
+                                    },
+                                    {
+                                        "q":  "Proton",
+                                        "a":  "A positively charged particle in the nucleus of an atom."
+                                    },
+                                    {
+                                        "q":  "Neutron",
+                                        "a":  "A particle with no charge, in the nucleus of an atom."
+                                    },
+                                    {
+                                        "q":  "Electron",
+                                        "a":  "A negatively charged particle moving around the nucleus."
+                                    },
+                                    {
+                                        "q":  "Chemical change",
+                                        "a":  "A change that makes a new substance, such as burning."
+                                    },
+                                    {
+                                        "q":  "Physical change",
+                                        "a":  "A change of form but not of substance, such as melting."
+                                    },
+                                    {
+                                        "q":  "Conduction",
+                                        "a":  "Heat moving through a material by direct contact."
+                                    },
+                                    {
+                                        "q":  "Convection",
+                                        "a":  "Heat moving because a liquid or a gas circulates."
+                                    },
+                                    {
+                                        "q":  "Radiation",
+                                        "a":  "Energy moving as waves, needing nothing in between."
+                                    },
+                                    {
+                                        "q":  "Force",
+                                        "a":  "A push or a pull."
+                                    },
+                                    {
+                                        "q":  "Acceleration",
+                                        "a":  "A change in speed or in direction."
+                                    },
+                                    {
+                                        "q":  "Potential energy",
+                                        "a":  "Stored energy, held by position or shape."
+                                    },
+                                    {
+                                        "q":  "Kinetic energy",
+                                        "a":  "The energy of something moving."
+                                    },
+                                    {
+                                        "q":  "Density",
+                                        "a":  "How much mass is packed into a given volume."
+                                    },
+                                    {
+                                        "q":  "Weathering",
+                                        "a":  "Rock being broken down where it sits, by water, ice or wind."
+                                    },
+                                    {
+                                        "q":  "Erosion",
+                                        "a":  "Broken rock and soil being carried away."
+                                    },
+                                    {
+                                        "q":  "Plate tectonics",
+                                        "a":  "That the Earth outer shell is broken into plates which move."
+                                    },
+                                    {
+                                        "q":  "Water cycle",
+                                        "a":  "Water moving between sea, air and land by evaporating, condensing and falling."
+                                    },
+                                    {
+                                        "q":  "Evaporation",
+                                        "a":  "A liquid turning into a gas."
+                                    },
+                                    {
+                                        "q":  "Condensation",
+                                        "a":  "A gas turning into a liquid."
+                                    },
+                                    {
+                                        "q":  "Inertia",
+                                        "a":  "That something keeps doing what it is doing until a force acts on it."
+                                    }
+                                ]
+                  },
+                  {
+                      "id":  "test-vocabulary",
+                      "subject":  "Vocabulary",
+                      "name":  "Words that show up on tests",
+                      "note":  "Not long words for their own sake - the ones that appear in the questions themselves.",
+                      "cards":  [
+                                    {
+                                        "q":  "analyze",
+                                        "a":  "To break something into parts to see how it works."
+                                    },
+                                    {
+                                        "q":  "infer",
+                                        "a":  "To work out something that was not stated outright."
+                                    },
+                                    {
+                                        "q":  "evidence",
+                                        "a":  "Facts that support a claim."
+                                    },
+                                    {
+                                        "q":  "claim",
+                                        "a":  "A statement somebody argues is true."
+                                    },
+                                    {
+                                        "q":  "summarize",
+                                        "a":  "To give the main points briefly."
+                                    },
+                                    {
+                                        "q":  "paraphrase",
+                                        "a":  "To say the same thing in your own words."
+                                    },
+                                    {
+                                        "q":  "cite",
+                                        "a":  "To name where information came from."
+                                    },
+                                    {
+                                        "q":  "context",
+                                        "a":  "The surrounding words or situation that give something its meaning."
+                                    },
+                                    {
+                                        "q":  "imply",
+                                        "a":  "To suggest without saying directly."
+                                    },
+                                    {
+                                        "q":  "explicit",
+                                        "a":  "Stated outright, leaving no doubt."
+                                    },
+                                    {
+                                        "q":  "implicit",
+                                        "a":  "Suggested, but not stated."
+                                    },
+                                    {
+                                        "q":  "theme",
+                                        "a":  "What a piece of writing is really about."
+                                    },
+                                    {
+                                        "q":  "tone",
+                                        "a":  "The writer attitude, heard in the words they choose."
+                                    },
+                                    {
+                                        "q":  "bias",
+                                        "a":  "A leaning that stops something being fair."
+                                    },
+                                    {
+                                        "q":  "credible",
+                                        "a":  "Believable enough to be trusted."
+                                    },
+                                    {
+                                        "q":  "objective",
+                                        "a":  "Based on facts rather than feelings."
+                                    },
+                                    {
+                                        "q":  "subjective",
+                                        "a":  "Based on personal feelings or opinion."
+                                    },
+                                    {
+                                        "q":  "relevant",
+                                        "a":  "Connected to the matter at hand."
+                                    },
+                                    {
+                                        "q":  "significant",
+                                        "a":  "Important enough to matter."
+                                    },
+                                    {
+                                        "q":  "contrast",
+                                        "a":  "To show how things differ."
+                                    },
+                                    {
+                                        "q":  "compare",
+                                        "a":  "To show how things are alike."
+                                    },
+                                    {
+                                        "q":  "consequence",
+                                        "a":  "What follows from something."
+                                    },
+                                    {
+                                        "q":  "justify",
+                                        "a":  "To give good reasons for."
+                                    },
+                                    {
+                                        "q":  "evaluate",
+                                        "a":  "To judge how good or how useful something is."
+                                    },
+                                    {
+                                        "q":  "interpret",
+                                        "a":  "To explain what something means."
+                                    },
+                                    {
+                                        "q":  "predict",
+                                        "a":  "To say what will happen before it does."
+                                    },
+                                    {
+                                        "q":  "sequence",
+                                        "a":  "The order in which things happen."
+                                    },
+                                    {
+                                        "q":  "category",
+                                        "a":  "A group of things that belong together."
+                                    },
+                                    {
+                                        "q":  "criteria",
+                                        "a":  "The standards something is judged against."
+                                    },
+                                    {
+                                        "q":  "define",
+                                        "a":  "To say exactly what a word means."
+                                    },
+                                    {
+                                        "q":  "describe",
+                                        "a":  "To say what something is like."
+                                    },
+                                    {
+                                        "q":  "illustrate",
+                                        "a":  "To make clear with an example."
+                                    },
+                                    {
+                                        "q":  "emphasize",
+                                        "a":  "To give something extra weight or attention."
+                                    },
+                                    {
+                                        "q":  "elaborate",
+                                        "a":  "To add more detail."
+                                    },
+                                    {
+                                        "q":  "concise",
+                                        "a":  "Short, with nothing wasted."
+                                    },
+                                    {
+                                        "q":  "ambiguous",
+                                        "a":  "Open to more than one meaning."
+                                    },
+                                    {
+                                        "q":  "alternative",
+                                        "a":  "Another choice."
+                                    },
+                                    {
+                                        "q":  "consistent",
+                                        "a":  "Happening the same way each time."
+                                    },
+                                    {
+                                        "q":  "contradict",
+                                        "a":  "To say the opposite of what was said before."
+                                    },
+                                    {
+                                        "q":  "valid",
+                                        "a":  "Based on sound reasoning."
+                                    },
+                                    {
+                                        "q":  "assume",
+                                        "a":  "To take something as true without checking."
+                                    },
+                                    {
+                                        "q":  "perspective",
+                                        "a":  "The point of view something is seen from."
+                                    },
+                                    {
+                                        "q":  "persuade",
+                                        "a":  "To bring somebody round to a view."
+                                    },
+                                    {
+                                        "q":  "deliberate",
+                                        "a":  "Done on purpose."
+                                    },
+                                    {
+                                        "q":  "inevitable",
+                                        "a":  "Certain to happen, whatever is done."
+                                    }
+                                ]
+                  }
+              ]
+}

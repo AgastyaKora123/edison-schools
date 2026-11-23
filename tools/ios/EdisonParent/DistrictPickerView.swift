@@ -135,6 +135,9 @@ struct DistrictPickerView: View {
             if let problem = await store.useDistrict(d) {
                 failure = problem
             } else {
+                // A different district means a different calendar, so every
+                // queued reminder is now about the wrong schools.
+                await store.rescheduleDayBeforeReminders()
                 dismiss()
             }
         }

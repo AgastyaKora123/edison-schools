@@ -1118,7 +1118,40 @@
     el('composer').hidden = true;
     el('calendar-view').hidden = false;
     renderCalendar();
+    refreshCalendarExport();
     window.scrollTo(0, 0);
+  }
+
+  /**
+   * The offer to put the dates in the phone's own calendar, which is this
+   * website's version of the iPhone app's night-before reminders.
+   *
+   * Hidden rather than disabled when there is nothing to export: a district
+   * that publishes no school schedule would otherwise get a button that
+   * hands over an empty file.
+   */
+  function refreshCalendarExport() {
+    const box = el('cal-export');
+    if (!box) return;
+    if (!window.SchoolCal || !window.PACK) { box.hidden = true; return; }
+
+    const n = SchoolCal.count(PACK, { schoolIds: schoolIds });
+    box.hidden = n === 0;
+    if (n === 0) return;
+
+    const note = el('cal-ics-note');
+    if (note) {
+      note.textContent = n + (n === 1 ? ' day' : ' days') +
+        ', each with a reminder the evening before. Opens in the calendar ' +
+        'app you already have, so the reminding happens even if you never ' +
+        'open this page again.';
+    }
+  }
+
+  function exportCalendarFile() {
+    if (!window.SchoolCal || !window.PACK) return;
+    const text = SchoolCal.build(PACK, { schoolIds: schoolIds });
+    SchoolCal.download(text, SchoolCal.filename(PACK));
   }
 
   function hideCalendar() {
@@ -1230,6 +1263,63 @@
       row.appendChild(del);
 
       row.addEventListener('click', () => startStudy(d));
+      list.appendChild(row);
+    });
+
+    renderPacks();
+  }
+
+  /**
+   * The ready-made sets, under the decks somebody has made themselves.
+   *
+   * A set already taken stays listed but disabled rather than disappearing:
+   * vanishing rows make a person wonder whether they imagined it, and the
+   * greyed row is also the answer to "did I already add this?".
+   */
+  function renderPacks() {
+    const box = el('pack-offer');
+    const list = el('pack-list');
+    if (!box || !list) return;
+
+    const available = Practice.packs();
+    box.hidden = available.length === 0;
+    if (!available.length) return;
+
+    list.innerHTML = '';
+    available.forEach((p) => {
+      const taken = decks.some((d) => d.packId === p.id);
+
+      const row = document.createElement('button');
+      row.className = 'deck';
+      row.type = 'button';
+      if (taken) row.disabled = true;
+
+      const text = document.createElement('span');
+      text.className = 'deck-text';
+
+      const tag = document.createElement('span');
+      tag.className = 'deck-tag';
+      tag.textContent = p.subject + (taken ? ' · added' : '');
+
+      const name = document.createElement('b');
+      name.textContent = p.name;
+
+      const sub = document.createElement('small');
+      sub.textContent = p.cards.length + ' cards · ' + p.note;
+
+      text.appendChild(tag);
+      text.appendChild(name);
+      text.appendChild(sub);
+      row.appendChild(text);
+
+      row.addEventListener('click', () => {
+        if (taken) return;
+        decks.push(Practice.deckFromPack(p));
+        Practice.save(decks);
+        renderDecks();
+        refreshPracticeCard();
+      });
+
       list.appendChild(row);
     });
   }
@@ -1385,6 +1475,8 @@
   if (calPrev) calPrev.addEventListener('click', () => shiftMonth(-1));
   const calNext = el('cal-next');
   if (calNext) calNext.addEventListener('click', () => shiftMonth(1));
+  const calIcs = el('cal-ics');
+  if (calIcs) calIcs.addEventListener('click', exportCalendarFile);
 
   // Each school's checkbox wires itself up in renderSettings.
 

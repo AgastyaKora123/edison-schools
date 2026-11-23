@@ -18,8 +18,20 @@ struct SettingsView: View {
 
     @AppStorage("defaultSchoolId") private var defaultSchoolId = ""
     @AppStorage("refreshURL") private var refreshURL = ""
+    @AppStorage(DayBeforeReminders.enabledKey) private var remindDayBefore = false
+    @AppStorage(DayBeforeReminders.hourKey) private var remindHour = DayBeforeReminders.defaultHour
     @State private var notifyStatus: UNAuthorizationStatus = .notDetermined
+    @State private var reminderCount = 0
     @State private var showDistrictPicker = false
+
+    /// Why there might be no reminders, which is more useful than a bare
+    /// zero: "none set" reads like a fault when it only means the published
+    /// calendar has run out.
+    private var reminderNote: String {
+        if notifyStatus != .authorized { return "Allow notifications below and these will start." }
+        if reminderCount == 0 { return "Nothing left in the published calendar to remind you about." }
+        return reminderCount == 1 ? "1 reminder set." : "\(reminderCount) reminders set."
+    }
 
     /// The district's own website, calendar and feed, from the information
     /// file. Empty entries are dropped rather than shown as dead links.
@@ -106,6 +118,42 @@ struct SettingsView: View {
                         LabeledContent("Pages indexed", value: "\(pack.facts.count)")
                         LabeledContent("Built", value: builtDescription(pack))
                     }
+                }
+
+                Section {
+                    Toggle("Remind me the night before", isOn: $remindDayBefore)
+                        .onChange(of: remindDayBefore) { _, on in
+                            Task {
+                                if on, notifyStatus != .authorized {
+                                    _ = await ClosingNotifier.requestPermission()
+                                    notifyStatus = await ClosingNotifier.authorizationStatus()
+                                }
+                                reminderCount = await store.rescheduleDayBeforeReminders()
+                            }
+                        }
+
+                    if remindDayBefore {
+                        Picker("Send it at", selection: $remindHour) {
+                            ForEach(Array(15...21), id: \.self) { h in
+                                Text(AnswerEngine.format12(String(format: "%d:00", h))).tag(h)
+                            }
+                        }
+                        .onChange(of: remindHour) { _, _ in
+                            Task { reminderCount = await store.rescheduleDayBeforeReminders() }
+                        }
+
+                        if notifyStatus == .denied {
+                            Link("Notifications are switched off — open Settings",
+                                 destination: URL(string: UIApplication.openSettingsURLString)!)
+                                .font(.footnote)
+                        } else {
+                            Text(reminderNote).font(.caption).foregroundStyle(.secondary)
+                        }
+                    }
+                } header: {
+                    Text("The night before")
+                } footer: {
+                    Text("Every day off, early dismissal and late start already in the school calendar, sent the evening before. A whole break gets one reminder, not one every night. These are handed to iOS in advance, so they arrive even with no signal and in Low Power Mode.")
                 }
 
                 Section {
@@ -198,7 +246,10 @@ struct SettingsView: View {
                     Button("Done") { dismiss() }
                 }
             }
-            .task { notifyStatus = await ClosingNotifier.authorizationStatus() }
+            .task {
+                notifyStatus = await ClosingNotifier.authorizationStatus()
+                reminderCount = await DayBeforeReminders.pendingCount()
+            }
             .sheet(isPresented: $showDistrictPicker) { DistrictPickerView().environmentObject(store) }
         }
     }

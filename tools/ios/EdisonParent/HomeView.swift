@@ -21,6 +21,7 @@ struct HomeView: View {
     @EnvironmentObject private var store: KnowledgeStore
     @EnvironmentObject private var practice: PracticeStore
     @AppStorage("defaultSchoolId") private var defaultSchoolId = ""
+    @AppStorage(DayBeforeReminders.enabledKey) private var remindDayBefore = false
 
     @State private var showSettings = false
 
@@ -57,6 +58,7 @@ struct HomeView: View {
                         }
                         ways
                         comingUp
+                        remindOffer
                         footnote
                     }
                 }
@@ -351,6 +353,40 @@ struct HomeView: View {
         f.timeZone = cal.timeZone
         f.dateFormat = "EEE d MMM"
         return f.string(from: d)
+    }
+
+    /// A setting nobody finds is a setting nobody has. Shown only while
+    /// reminders are off and there is actually something to be reminded
+    /// about, and it disappears for good the moment they are switched on.
+    @ViewBuilder
+    private var remindOffer: some View {
+        if !remindDayBefore, !upcoming.isEmpty {
+            Button { showSettings = true } label: {
+                HStack(spacing: 10) {
+                    Image(systemName: "bell.badge")
+                        .foregroundStyle(tint(for: .closed))
+                    Text("Get told the night before")
+                    Spacer()
+                    Image(systemName: "chevron.right")
+                        .font(.caption2)
+                        .foregroundStyle(.tertiary)
+                }
+                .font(.subheadline)
+                .padding(.vertical, 13)
+                .padding(.horizontal, 15)
+                .frame(maxWidth: .infinity)
+                .background(
+                    RoundedRectangle(cornerRadius: 15, style: .continuous)
+                        .fill(Color(.secondarySystemGroupedBackground))
+                )
+                .overlay(
+                    RoundedRectangle(cornerRadius: 15, style: .continuous)
+                        .stroke(Color.primary.opacity(0.07), lineWidth: 1)
+                )
+            }
+            .buttonStyle(.plain)
+            .padding(.top, 10)
+        }
     }
 
     // MARK: - Odds and ends
