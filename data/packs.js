@@ -499,7 +499,7 @@ window.PRACTICE_PACKS = {
                                     },
                                     {
                                         "q":  "Plate tectonics",
-                                        "a":  "That the Earth outer shell is broken into plates which move."
+                                        "a":  "That the Earth's outer shell is broken into plates that move."
                                     },
                                     {
                                         "q":  "Water cycle",
@@ -575,7 +575,7 @@ window.PRACTICE_PACKS = {
                                     },
                                     {
                                         "q":  "tone",
-                                        "a":  "The writer attitude, heard in the words they choose."
+                                        "a":  "The writer's attitude, heard in the words they choose."
                                     },
                                     {
                                         "q":  "bias",

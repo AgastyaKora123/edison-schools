@@ -208,6 +208,19 @@ jobs:
               echo "NO - it never ran. Everything above is about other checks."
             fi
             echo ""
+            echo "--- did the 1.3 checks run? ---"
+            for t in testAWholeBreakGetsOneReminder \
+                     testADayAlreadyAnnouncedOnTheFeedIsLeftAlone \
+                     testTheTimesTablesAreActuallyCorrect \
+                     testAddingASetMakesAFreshDeckOfItsOwn; do
+              line=$(grep -E "Test Case .*$t.* (passed|failed)" test.log 2>/dev/null | tail -1)
+              if [ -n "$line" ]; then
+                echo "$line" | sed 's|.*/tools/ios/||'
+              else
+                echo "$t - NEVER RAN"
+              fi
+            done
+            echo ""
             echo "--- App Store screenshot ---"
             if [ -f screenshots/SIZE.txt ]; then
               echo "captured $(cat screenshots/SIZE.txt)"

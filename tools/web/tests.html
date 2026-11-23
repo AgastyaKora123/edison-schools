@@ -30,6 +30,9 @@
 <script src="data/fixtures.js"></script>
 <script src="engine.js"></script>
 <script src="district.js"></script>
+<script src="data/packs.js"></script>
+<script src="practice.js"></script>
+<script src="calfile.js"></script>
 <script>
 /*
  * Replays tests/questions.jsonl and tests/alerts.jsonl — the same contract
@@ -520,6 +523,154 @@
     for (const bad of [null, {}, { live_feeds: null }, { live_feeds: [{}] }, { live_feeds: 'x' }]) {
       const r = p.fromFeed(bad);
       if (r.length) return 'expected nothing from ' + JSON.stringify(bad);
+    }
+    return null;
+  });
+
+  // ------------------------------------------- the calendar file (1.3)
+  //
+  // The format is unforgiving and nobody reads it by eye: a calendar app
+  // either swallows the file silently or shows the wrong dates. The one to
+  // watch is DTEND, which in this format is the day AFTER the last day -
+  // the same exclusive-end trap the ingest step had to undo when reading.
+
+  const calPack = {
+    district: { name: 'Edison Township Public Schools', timeZone: 'America/New_York' },
+    calendar: [
+      { date: '2027-01-04', endDate: '2027-01-08', title: 'Winter Recess', kind: 'break', scope: 'district', schoolIds: [] },
+      { date: '2027-01-15', endDate: '2027-01-15', title: 'Early Dismissal', kind: 'early_dismissal', scope: 'district', schoolIds: [] },
+      { date: '2027-01-20', endDate: '2027-01-20', title: 'Conferences, grades 1-5; half day', kind: 'single_session', scope: 'district', schoolIds: [] },
+      { date: '2027-01-22', endDate: '2027-01-22', title: 'Heating works', kind: 'closed', scope: 'school', schoolIds: ['les'] },
+      { date: '2027-01-25', endDate: '2027-01-25', title: 'Band Concert', kind: 'event', scope: 'district', schoolIds: [] },
+      { date: '2026-09-01', endDate: '2026-09-01', title: 'Last September', kind: 'closed', scope: 'district', schoolIds: [] }
+    ]
+  };
+  const calFrom = new Date(2027, 0, 1);
+
+  integration('calendar file: a multi-day break ends the day after it ends', function () {
+    if (!window.SchoolCal) return 'calfile.js did not load';
+    const t = window.SchoolCal.build(calPack, { from: calFrom });
+    if (t.indexOf('DTSTART;VALUE=DATE:20270104') < 0) return 'wrong start for the break';
+    // 8 January is the last day off, so the file must say the 9th.
+    if (t.indexOf('DTEND;VALUE=DATE:20270109') < 0) return 'DTEND is not exclusive - every break would be a day short';
+    return null;
+  });
+
+  integration('calendar file: a one-day closure is one day long', function () {
+    const t = window.SchoolCal.build(calPack, { from: calFrom });
+    if (t.indexOf('DTSTART;VALUE=DATE:20270115') < 0) return 'missing the early dismissal';
+    if (t.indexOf('DTEND;VALUE=DATE:20270116') < 0) return 'a one-day event must end the next day';
+    return null;
+  });
+
+  integration('calendar file: leaves out ordinary events and days gone by', function () {
+    const t = window.SchoolCal.build(calPack, { from: calFrom });
+    if (t.indexOf('Band Concert') >= 0) return 'a concert is not a day off';
+    if (t.indexOf('Last September') >= 0) return 'a day that has been and gone was included';
+    return null;
+  });
+
+  integration('calendar file: another school’s closure stays out unless chosen', function () {
+    const without = window.SchoolCal.build(calPack, { from: calFrom });
+    if (without.indexOf('Heating works') >= 0) return 'one school’s closure leaked into everybody’s file';
+    const withIt = window.SchoolCal.build(calPack, { from: calFrom, schoolIds: ['les'] });
+    if (withIt.indexOf('Heating works') < 0) return 'the chosen school’s own closure was dropped';
+    return null;
+  });
+
+  integration('calendar file: commas and semicolons are escaped', function () {
+    const t = window.SchoolCal.build(calPack, { from: calFrom });
+    if (t.indexOf('Conferences\\, grades 1-5\\; half day') < 0) {
+      return 'an unescaped comma or semicolon ends the field early and the title is cut off';
+    }
+    return null;
+  });
+
+  integration('calendar file: the alarm is the evening before', function () {
+    const six = window.SchoolCal.build(calPack, { from: calFrom });
+    if (six.indexOf('TRIGGER:-PT6H') < 0) return 'default alarm is not 6pm the night before';
+    const nine = window.SchoolCal.build(calPack, { from: calFrom, hour: 9 });
+    if (nine.indexOf('TRIGGER:-PT15H') < 0) return 'the chosen hour is not honoured';
+    const events = (six.match(/BEGIN:VEVENT/g) || []).length;
+    const alarms = (six.match(/BEGIN:VALARM/g) || []).length;
+    if (events !== alarms) return 'every event needs exactly one alarm (' + events + ' vs ' + alarms + ')';
+    return null;
+  });
+
+  integration('calendar file: no line is longer than the format allows', function () {
+    const t = window.SchoolCal.build(window.PACK, {});
+    const enc = new TextEncoder();
+    for (const line of t.split('\r\n')) {
+      if (enc.encode(line).length > 75) return 'a line is over 75 octets: ' + line.slice(0, 40);
+    }
+    if (!/\r\n$/.test(t)) return 'the file must end with a line break';
+    return null;
+  });
+
+  integration('calendar file: rubbish in does not throw', function () {
+    window.SchoolCal.build(null, null);
+    window.SchoolCal.build({}, {});
+    const empty = window.SchoolCal.build({ district: { name: 'X' }, calendar: [] }, {});
+    if (empty.indexOf('BEGIN:VEVENT') >= 0) return 'an empty calendar produced an event';
+    if (empty.indexOf('END:VCALENDAR') < 0) return 'an empty calendar is still a calendar';
+    return null;
+  });
+
+  // ------------------------------------------- the ready-made sets (1.3)
+
+  integration('practice sets: all four are there and none is empty', function () {
+    if (!window.Practice || !window.Practice.packs) return 'practice.js did not load';
+    const packs = window.Practice.packs();
+    if (packs.length !== 4) return 'expected 4 sets, found ' + packs.length;
+    for (const p of packs) {
+      if (!p.id || !p.name || !p.subject) return 'a set is missing its name or subject';
+      if (p.cards.length < 20) return p.id + ' is too thin to be worth offering';
+      for (const c of p.cards) {
+        if (!String(c.q || '').trim() || !String(c.a || '').trim()) {
+          return p.id + ' has a card with a missing side: ' + JSON.stringify(c);
+        }
+      }
+    }
+    return null;
+  });
+
+  integration('practice sets: the times tables are actually right', function () {
+    const tt = window.Practice.packs().filter((p) => p.id === 'times-tables')[0];
+    if (!tt) return 'no times tables set';
+    for (const c of tt.cards) {
+      const parts = c.q.split('×');
+      if (parts.length !== 2) return 'cannot read ' + c.q;
+      const want = parseInt(parts[0], 10) * parseInt(parts[1], 10);
+      if (parseInt(c.a, 10) !== want) return c.q + ' says ' + c.a + ', should be ' + want;
+    }
+    if (tt.cards.length !== 28) return '6 to 12, each pair once, is 28 cards';
+    return null;
+  });
+
+  integration('practice sets: no set asks the same question twice', function () {
+    for (const p of window.Practice.packs()) {
+      const seen = {};
+      for (const c of p.cards) {
+        const k = c.q.toLowerCase();
+        if (seen[k]) return p.id + ' asks "' + c.q + '" twice';
+        seen[k] = true;
+      }
+    }
+    return null;
+  });
+
+  integration('practice sets: adding one makes a fresh deck of its own', function () {
+    const p = window.Practice.packs()[0];
+    const a = window.Practice.deckFromPack(p);
+    const b = window.Practice.deckFromPack(p);
+    if (a.cards.length !== p.cards.length) return 'cards were lost on the way in';
+    if (a.packId !== p.id) return 'the deck does not remember which set it came from';
+    if (a.id === b.id || a.cards[0].id === b.cards[0].id) {
+      return 'two copies share identities, so answering one would move the other';
+    }
+    for (const c of a.cards) {
+      if (c.box !== 1 || c.seen !== 0) return 'a set just added should be ready to study, not part-learned';
+      if (!window.Practice.isDue(c)) return 'a card in a new set is not due today';
     }
     return null;
   });

@@ -204,7 +204,13 @@ struct HomeView: View {
 
     private var practiceDetail: String {
         let decks = practice.decks.count
-        if decks == 0 { return "Turn your notes into questions" }
+        if decks == 0 {
+            // Since 1.3 there is something to practise without writing
+            // anything first, and this card is the only place that gets said.
+            return PackLibrary.all.isEmpty
+                ? "Turn your notes into questions"
+                : "Your notes, or a set already written"
+        }
         let due = practice.dueCount()
         return due == 0
             ? "Nothing due - come back tomorrow"
@@ -360,7 +366,10 @@ struct HomeView: View {
     /// about, and it disappears for good the moment they are switched on.
     @ViewBuilder
     private var remindOffer: some View {
-        if !remindDayBefore, !upcoming.isEmpty {
+        // Asking the engine whether this district publishes a schedule at
+        // all, rather than scanning the next ninety days a second time: the
+        // list above has already done that walk once this render.
+        if !remindDayBefore, engine?.publishesSchoolSchedule == true {
             Button { showSettings = true } label: {
                 HStack(spacing: 10) {
                     Image(systemName: "bell.badge")

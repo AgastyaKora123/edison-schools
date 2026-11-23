@@ -1189,7 +1189,11 @@
     const badge = el('practice-badge');
     if (!sub || !badge) return;
     if (!decks.length) {
-      sub.textContent = 'Turn your notes into questions';
+      // Since 1.3 there is something to practise without writing anything
+      // first, and the card is the only place that gets said.
+      sub.textContent = Practice.packs().length
+        ? 'Your notes, or a set already written'
+        : 'Turn your notes into questions';
       badge.hidden = true;
       return;
     }
