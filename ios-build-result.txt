@@ -1,10 +1,11 @@
-iPhone app build - 2026-11-22 22:33 UTC
+iPhone app build - 2026-11-23 14:16 UTC
 Xcode: Xcode 26.6
+Reporting on: af090da
 
 COMPILED: yes
 
 --- anything the compiler objected to ---
-2026-11-22 22:24:27.545 appintentsmetadataprocessor[2018:9941] warning: Metadata extraction skipped. No AppIntents.framework dependency found.
+2026-11-23 14:13:32.095 appintentsmetadataprocessor[1527:8173] warning: Metadata extraction skipped. No AppIntents.framework dependency found.
 
 --- checks that failed ---
 (none)
@@ -13,13 +14,19 @@ COMPILED: yes
 yes
 
 --- did the 100-question contract actually run? ---
-Test Case '-[EdisonParentTests.AnswerEngineTests testQuestionContract]' passed (5.009 seconds).
+Test Case '-[EdisonParentTests.AnswerEngineTests testQuestionContract]' passed (2.587 seconds).
+
+--- did the 1.3 checks run? ---
+Test Case '-[EdisonParentTests.DayBeforeRemindersTests testAWholeBreakGetsOneReminder]' passed (0.035 seconds).
+Test Case '-[EdisonParentTests.DayBeforeRemindersTests testADayAlreadyAnnouncedOnTheFeedIsLeftAlone]' passed (0.039 seconds).
+Test Case '-[EdisonParentTests.PracticePacksTests testTheTimesTablesAreActuallyCorrect]' passed (0.002 seconds).
+Test Case '-[EdisonParentTests.PracticePacksTests testAddingASetMakesAFreshDeckOfItsOwn]' passed (1.120 seconds).
 
 --- App Store screenshot ---
 captured 1206x2622 on iPhone 17 Pro
 on the site at store/screenshots-iphone/
 
 --- totals ---
-	 Executed 6 tests, with 0 failures (0 unexpected) in 0.011 (2.085) seconds
-	 Executed 42 tests, with 0 failures (0 unexpected) in 17.059 (19.699) seconds
-	 Executed 42 tests, with 0 failures (0 unexpected) in 17.059 (19.911) seconds
+	 Executed 8 tests, with 0 failures (0 unexpected) in 3.539 (3.541) seconds
+	 Executed 66 tests, with 0 failures (0 unexpected) in 18.647 (19.881) seconds
+	 Executed 66 tests, with 0 failures (0 unexpected) in 18.647 (19.882) seconds
