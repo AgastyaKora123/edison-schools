@@ -1,11 +1,11 @@
-iPhone app build - 2026-11-24 02:53 UTC
+iPhone app build - 2026-11-24 03:48 UTC
 Xcode: Xcode 26.6
-Reporting on: 6e61fe3
+Reporting on: 5728f68
 
 COMPILED: yes
 
 --- anything the compiler objected to ---
-2026-11-24 02:45:11.255 appintentsmetadataprocessor[9582:30776] warning: Metadata extraction skipped. No AppIntents.framework dependency found.
+2026-11-24 03:39:53.460 appintentsmetadataprocessor[2009:9685] warning: Metadata extraction skipped. No AppIntents.framework dependency found.
 
 --- checks that failed ---
 (none)
@@ -14,23 +14,23 @@ COMPILED: yes
 yes
 
 --- did the 100-question contract actually run? ---
-Test Case '-[EdisonParentTests.AnswerEngineTests testQuestionContract]' passed (4.767 seconds).
+Test Case '-[EdisonParentTests.AnswerEngineTests testQuestionContract]' passed (23.069 seconds).
 
 --- did the checks that matter run? ---
-Test Case '-[EdisonParentTests.DayBeforeRemindersTests testAWholeBreakGetsOneReminder]' passed (0.046 seconds).
-Test Case '-[EdisonParentTests.DayBeforeRemindersTests testADayAlreadyAnnouncedOnTheFeedIsLeftAlone]' passed (0.059 seconds).
-Test Case '-[EdisonParentTests.PracticePacksTests testTheTimesTablesAreActuallyCorrect]' passed (0.001 seconds).
-Test Case '-[EdisonParentTests.PracticePacksTests testAddingASetMakesAFreshDeckOfItsOwn]' passed (0.005 seconds).
-Test Case '-[EdisonParentTests.LessonsTests testEveryGeneratedAnswerIsActuallyCorrect]' passed (0.036 seconds).
-Test Case '-[EdisonParentTests.LessonsTests testTheThinnestTopicStillFillsASet]' passed (0.001 seconds).
-Test Case '-[EdisonParentTests.LessonsTests testSearchIsForgiving]' passed (0.001 seconds).
-Test Case '-[EdisonParentTests.LessonsTests testAWrittenTopicBecomesADeckOfItsOwn]' passed (0.003 seconds).
+Test Case '-[EdisonParentTests.DayBeforeRemindersTests testAWholeBreakGetsOneReminder]' passed (0.127 seconds).
+Test Case '-[EdisonParentTests.DayBeforeRemindersTests testADayAlreadyAnnouncedOnTheFeedIsLeftAlone]' passed (0.372 seconds).
+Test Case '-[EdisonParentTests.PracticePacksTests testTheTimesTablesAreActuallyCorrect]' passed (0.003 seconds).
+Test Case '-[EdisonParentTests.PracticePacksTests testAddingASetMakesAFreshDeckOfItsOwn]' passed (1.927 seconds).
+Test Case '-[EdisonParentTests.LessonsTests testEveryGeneratedAnswerIsActuallyCorrect]' passed (0.086 seconds).
+Test Case '-[EdisonParentTests.LessonsTests testTheThinnestTopicStillFillsASet]' passed (0.002 seconds).
+Test Case '-[EdisonParentTests.LessonsTests testSearchIsForgiving]' passed (0.002 seconds).
+Test Case '-[EdisonParentTests.LessonsTests testAWrittenTopicBecomesADeckOfItsOwn]' passed (0.002 seconds).
 
 --- App Store screenshot ---
 captured 1206x2622 on iPhone 17 Pro
 on the site at store/screenshots-iphone/
 
 --- totals ---
-	 Executed 8 tests, with 0 failures (0 unexpected) in 0.022 (0.045) seconds
-	 Executed 76 tests, with 0 failures (0 unexpected) in 16.033 (16.694) seconds
-	 Executed 76 tests, with 0 failures (0 unexpected) in 16.033 (16.696) seconds
+	 Executed 8 tests, with 0 failures (0 unexpected) in 1.956 (3.895) seconds
+	 Executed 76 tests, with 0 failures (0 unexpected) in 43.011 (58.850) seconds
+	 Executed 76 tests, with 0 failures (0 unexpected) in 43.011 (58.925) seconds
