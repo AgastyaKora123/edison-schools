@@ -676,6 +676,12 @@ dialog::backdrop { background: rgba(0,0,0,.45); }
    tapped, so it should not look like a different kind of thing. */
 .pr-sub { font-size: 13px; font-weight: 650; color: var(--ink-soft);
           margin: 24px 0 9px; }
+
+/* Name a topic and a grade. The two controls sit on one line on a phone,
+   because asking someone to scroll between them would be silly. */
+.lesson-row { display: flex; gap: 8px; margin-bottom: 10px; }
+.lesson-topic { flex: 1 1 auto; min-width: 0; margin: 0; }
+.lesson-grade { flex: 0 0 auto; width: 104px; margin: 0; }
 .deck[disabled] { opacity: 0.5; cursor: default; }
 .deck[disabled]:hover { border-color: var(--line); }
 .deck-tag { font-size: 10.5px; font-weight: 800; letter-spacing: 0.09em;
@@ -804,6 +810,18 @@ dialog::backdrop { background: rgba(0,0,0,.45); }
       <!-- New in 1.3. Somebody who opens this the night before a test with
            nothing written down needs a way in that is not "go and write
            some notes first". -->
+      <div id="lesson-offer" hidden>
+        <h3 class="pr-sub">Or name a topic and a grade</h3>
+        <div class="lesson-row">
+          <input class="pr-input lesson-topic" id="lesson-topic" type="text"
+                 placeholder="fractions, planets, times tables&hellip;"
+                 autocomplete="off">
+          <select class="pr-input lesson-grade" id="lesson-grade"></select>
+        </div>
+        <div id="lesson-matches"></div>
+        <p class="pr-note small" id="lesson-note"></p>
+      </div>
+
       <div id="pack-offer" hidden>
         <h3 class="pr-sub">Or start with one already written</h3>
         <div id="pack-list"></div>
@@ -927,8 +945,10 @@ dialog::backdrop { background: rgba(0,0,0,.45); }
 <script src="data/rules.js"></script>
 <script src="data/districts.js"></script>
 <script src="data/packs.js"></script>
+<script src="data/lessons.js"></script>
 <script src="engine.js"></script>
 <script src="district.js"></script>
 <script src="practice.js"></script>
 <script src="calfile.js"></script>
+<script src="lessons.js"></script>
 <script src="app.js"></script>

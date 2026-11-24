@@ -18,6 +18,7 @@ struct PracticeView: View {
     @EnvironmentObject private var practice: PracticeStore
     @State private var showNew = false
     @State private var showPacks = false
+    @State private var showLessons = false
 
     var body: some View {
         Group {
@@ -37,6 +38,7 @@ struct PracticeView: View {
         }
         .sheet(isPresented: $showNew) { NewDeckView().environmentObject(practice) }
         .sheet(isPresented: $showPacks) { PackPickerView().environmentObject(practice) }
+        .sheet(isPresented: $showLessons) { LessonMakerView().environmentObject(practice) }
     }
 
     private var empty: some View {
@@ -45,8 +47,13 @@ struct PracticeView: View {
         } description: {
             Text("Paste your notes and this turns them into questions. It reads the way people already write them - \"Mitochondria - the powerhouse of the cell\".")
         } actions: {
+            // Typing out notes is the slowest way in, so it is no longer the
+            // first thing offered. Naming a topic takes seconds.
+            if !LessonLibrary.all.isEmpty {
+                Button("Name a topic and a grade") { showLessons = true }
+                    .buttonStyle(.borderedProminent)
+            }
             Button("Add your notes") { showNew = true }
-                .buttonStyle(.borderedProminent)
             // Somebody who opens this the night before a test with nothing
             // written down needs a way in that is not "go and write notes".
             if !PackLibrary.all.isEmpty {
@@ -68,8 +75,15 @@ struct PracticeView: View {
                 for i in idx { practice.remove(practice.decks[i]) }
             }
 
-            if !PackLibrary.all.isEmpty {
-                Section {
+            Section {
+                if !LessonLibrary.all.isEmpty {
+                    Button {
+                        showLessons = true
+                    } label: {
+                        Label("Name a topic and a grade", systemImage: "sparkles.rectangle.stack")
+                    }
+                }
+                if !PackLibrary.all.isEmpty {
                     Button {
                         showPacks = true
                     } label: {
@@ -376,6 +390,115 @@ struct PackPickerView: View {
     private func add(_ pack: PracticePack) {
         guard !alreadyAdded(pack) else { return }
         practice.add(PackLibrary.deck(from: pack))
+        dismiss()
+    }
+}
+
+// MARK: - Name a topic and a grade
+
+/// The quickest way in. Type roughly what the topic is, say which grade, and
+/// get a set of questions - maths worked out on the spot so it never runs out,
+/// everything else written in advance.
+struct LessonMakerView: View {
+
+    @EnvironmentObject private var practice: PracticeStore
+    @Environment(\.dismiss) private var dismiss
+
+    /// Remembered between visits: a child is in one grade all year, and
+    /// picking it every single time would be a small daily annoyance.
+    @AppStorage("lessonGrade") private var grade: Int = 5
+    @State private var typed = ""
+
+    private var grades: [Int] { LessonLibrary.grades }
+
+    private var matches: [LessonTopic] {
+        LessonLibrary.search(typed, grade: grade)
+    }
+
+    var body: some View {
+        NavigationStack {
+            Group {
+                if LessonLibrary.all.isEmpty {
+                    ContentUnavailableView {
+                        Label("No topics", systemImage: "tray")
+                    } description: {
+                        Text("This copy of the app did not ship with any. Your own notes still work.")
+                    }
+                } else {
+                    List {
+                        Section {
+                            Picker("Grade", selection: $grade) {
+                                ForEach(grades, id: \.self) { g in
+                                    Text("Grade \(g)").tag(g)
+                                }
+                            }
+                        }
+
+                        if matches.isEmpty {
+                            Section {
+                                Text("Nothing here for \"\(typed)\" in grade \(grade). Try a simpler word, another grade, or write your own notes.")
+                                    .font(.callout)
+                                    .foregroundStyle(.secondary)
+                            }
+                        } else {
+                            Section {
+                                ForEach(matches) { topic in
+                                    Button { add(topic) } label: { row(topic) }
+                                }
+                            }
+                        }
+
+                        Section {
+                            Text("A topic becomes a deck of your own, so your progress stays put even when the app is updated. Maths topics make different questions every time you ask.")
+                                .font(.caption)
+                                .foregroundStyle(.secondary)
+                        }
+                    }
+                    .searchable(text: $typed, prompt: "fractions, planets, times tables…")
+                }
+            }
+            .navigationTitle("Make a lesson")
+            .navigationBarTitleDisplayMode(.inline)
+            .toolbar {
+                ToolbarItem(placement: .confirmationAction) {
+                    Button("Done") { dismiss() }
+                }
+            }
+        }
+    }
+
+    private func row(_ topic: LessonTopic) -> some View {
+        VStack(alignment: .leading, spacing: 3) {
+            Text(topic.subject.uppercased())
+                .font(.caption2.weight(.heavy))
+                .kerning(1.2)
+                .foregroundStyle(.secondary)
+            Text(topic.name)
+                .font(.system(.headline, design: .serif))
+            Text(topic.make != nil
+                 ? "20 questions, different every time"
+                 : "\((topic.cards ?? []).count) cards")
+                .font(.caption)
+                .foregroundStyle(.secondary)
+            if let note = topic.note {
+                Text(note)
+                    .font(.caption2)
+                    .foregroundStyle(.tertiary)
+            }
+        }
+        .padding(.vertical, 3)
+        .multilineTextAlignment(.leading)
+    }
+
+    private func add(_ topic: LessonTopic) {
+        // A fresh seed each time, so asking twice gives two different sets.
+        let seed = UInt32(truncatingIfNeeded: Int(Date().timeIntervalSince1970))
+        guard let made = LessonLibrary.make(topicId: topic.id,
+                                            grade: grade,
+                                            count: 20,
+                                            seed: seed == 0 ? 1 : seed),
+              !made.cards.isEmpty else { return }
+        practice.add(LessonLibrary.deck(from: made))
         dismiss()
     }
 }

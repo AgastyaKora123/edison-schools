@@ -33,6 +33,8 @@
 <script src="data/packs.js"></script>
 <script src="practice.js"></script>
 <script src="calfile.js"></script>
+<script src="data/lessons.js"></script>
+<script src="lessons.js"></script>
 <script>
 /*
  * Replays tests/questions.jsonl and tests/alerts.jsonl — the same contract
@@ -671,6 +673,171 @@
     for (const c of a.cards) {
       if (c.box !== 1 || c.seen !== 0) return 'a set just added should be ready to study, not part-learned';
       if (!window.Practice.isDue(c)) return 'a card in a new set is not due today';
+    }
+    return null;
+  });
+
+  // ------------------------------------------- topic and grade lessons
+  //
+  // The maths here is worked out rather than written down, so every answer
+  // is recomputed from the question's own text. A wrong answer in a revision
+  // app is worse than no answer: somebody would learn it.
+
+  function lessonGcd(a, b) { while (b) { const t = a % b; a = b; b = t; } return a; }
+
+  const LESSON_CHECKS = {
+    'times-tables': function (q, a) {
+      const m = q.match(/^(\d+) × (\d+)$/);
+      return m ? +a === +m[1] * +m[2] : null;
+    },
+    'division-facts': function (q, a) {
+      const m = q.match(/^(\d+) ÷ (\d+)$/);
+      if (!m) return null;
+      return Number.isInteger(+m[1] / +m[2]) && +a === +m[1] / +m[2];
+    },
+    'adding-subtracting': function (q, a) {
+      let m = q.match(/^(\d+) \+ (\d+)$/);
+      if (m) return +a === +m[1] + +m[2];
+      m = q.match(/^(\d+) − (\d+)$/);
+      return m ? (+m[1] >= +m[2] && +a === +m[1] - +m[2]) : null;
+    },
+    'rounding': function (q, a) {
+      const m = q.match(/^Round (\d+) to the nearest (ten|hundred|thousand)$/);
+      if (!m) return null;
+      const to = { ten: 10, hundred: 100, thousand: 1000 }[m[2]];
+      return +a === Math.floor((+m[1] + to / 2) / to) * to;
+    },
+    'place-value': function (q, a) {
+      const m = q.match(/^Which digit is in the (.+) place of (\d+)\?$/);
+      if (!m) return null;
+      const places = ['ones', 'tens', 'hundreds', 'thousands',
+                      'ten thousands', 'hundred thousands'];
+      const p = places.indexOf(m[1]);
+      if (p < 0) return null;
+      return +a === Math.floor(+m[2] / Math.pow(10, p)) % 10;
+    },
+    'simplifying-fractions': function (q, a) {
+      const m = q.match(/^Write (\d+)\/(\d+) in its simplest form$/);
+      const am = a.match(/^(\d+)\/(\d+)$/);
+      if (!m || !am) return null;
+      const g = lessonGcd(+m[1], +m[2]);
+      return +am[1] === +m[1] / g && +am[2] === +m[2] / g
+        && lessonGcd(+am[1], +am[2]) === 1 && +m[2] !== +am[2];
+    },
+    'percent-of': function (q, a) {
+      const m = q.match(/^What is (\d+)% of (\d+)\?$/);
+      return m ? +a === +m[1] * +m[2] / 100 : null;
+    },
+    'area-perimeter': function (q, a) {
+      let m = q.match(/^A rectangle is (\d+) by (\d+)\. What is its area\?$/);
+      if (m) return +a === +m[1] * +m[2];
+      m = q.match(/^A rectangle is (\d+) by (\d+)\. What is its perimeter\?$/);
+      return m ? +a === 2 * (+m[1] + +m[2]) : null;
+    }
+  };
+
+  integration('lessons: the topic library loaded', function () {
+    if (!window.Lessons) return 'Lessons is not there at all';
+    if (Lessons.all().length < 12) return 'only ' + Lessons.all().length + ' topics';
+    const ids = Lessons.all().map(function (t) { return t.id; });
+    if (new Set(ids).size !== ids.length) return 'two topics share an id';
+    return null;
+  });
+
+  integration('lessons: every grade has something to practise', function () {
+    for (const g of Lessons.grades()) {
+      const n = Lessons.forGrade(g).length;
+      if (n < 5) return 'grade ' + g + ' only offers ' + n + ' topics';
+    }
+    return null;
+  });
+
+  integration('lessons: every generated answer is actually correct', function () {
+    let checked = 0;
+    for (const t of Lessons.all()) {
+      if (!t.make) continue;
+      const check = LESSON_CHECKS[t.id];
+      if (!check) return 'no independent check written for ' + t.id;
+      for (const key of Object.keys(t.byGrade)) {
+        for (const seed of [1, 777, 20261124]) {
+          const made = Lessons.make(t.id, +key, 20, seed);
+          if (!made) return t.id + ' grade ' + key + ' produced nothing';
+          if (made.cards.length !== 20) {
+            return t.id + ' grade ' + key + ' seed ' + seed +
+                   ' made only ' + made.cards.length + ' cards';
+          }
+          const seen = new Set();
+          for (const c of made.cards) {
+            checked++;
+            if (seen.has(c.q)) return t.id + ' repeated "' + c.q + '"';
+            seen.add(c.q);
+            const verdict = check(c.q, c.a);
+            if (verdict === null) return t.id + ': could not read back "' + c.q + '"';
+            if (!verdict) return t.id + ' grade ' + key + ': WRONG "' + c.q + '" -> "' + c.a + '"';
+          }
+        }
+      }
+    }
+    // Without this, a loop that silently did nothing would read as a pass.
+    if (checked < 1000) return 'only ' + checked + ' questions were checked';
+    return null;
+  });
+
+  integration('lessons: searching is forgiving about wording', function () {
+    if (!Lessons.search('frac', 5).length) return '"frac" found nothing';
+    if (!Lessons.search('FRACTIONS', 5).length) return 'capitals broke it';
+    if (!Lessons.search('maths', 4).length) return 'searching by subject found nothing';
+    if (Lessons.search('quantum chromodynamics', 4).length) {
+      return 'a topic nobody wrote came back with something';
+    }
+    return null;
+  });
+
+  integration('lessons: a grade is only offered what suits it', function () {
+    const young = Lessons.forGrade(3).map(function (t) { return t.id; });
+    if (young.indexOf('percent-of') !== -1) return 'grade 3 is being offered percentages';
+    if (Lessons.make('percent-of', 3, 20, 1)) return 'it built a grade 3 percentages set anyway';
+    if (Lessons.make('no-such-topic', 5, 20, 1)) return 'it built a topic that does not exist';
+    return null;
+  });
+
+  integration('lessons: asking twice gives different questions', function () {
+    const a = Lessons.make('times-tables', 5, 20, 1);
+    const b = Lessons.make('times-tables', 5, 20, 2);
+    if (JSON.stringify(a.cards) === JSON.stringify(b.cards)) {
+      return 'two different seeds gave the identical set';
+    }
+    const again = Lessons.make('times-tables', 5, 20, 1);
+    if (JSON.stringify(a.cards) !== JSON.stringify(again.cards)) {
+      return 'the same seed gave a different set';
+    }
+    return null;
+  });
+
+  integration('lessons: the thinnest topic still fills a set of 20', function () {
+    // This is the bug that forced the number generator to be replaced: a
+    // weak one made the same five percentage questions over and over.
+    for (const g of [5, 6, 7, 8]) {
+      const made = Lessons.make('percent-of', g, 20, 3);
+      if (!made || made.cards.length !== 20) {
+        return 'percentages at grade ' + g + ' only managed ' +
+               (made ? made.cards.length : 0);
+      }
+    }
+    return null;
+  });
+
+  integration('lessons: a topic becomes a deck of its own', function () {
+    const made = Lessons.make('planets', 4, 20, 1);
+    if (!made) return 'the planets topic did not build';
+    if (made.name !== 'The planets · grade 4') return 'wrong name: ' + made.name;
+    const deck = window.Practice.deckFromLesson(made);
+    if (deck.lessonId !== 'planets') return 'the deck forgot where it came from';
+    if (deck.packId) return 'a lesson should not look like a ready-made set';
+    if (deck.cards.length !== made.cards.length) return 'cards were lost on the way in';
+    for (const c of deck.cards) {
+      if (c.box !== 1 || c.seen !== 0) return 'a new deck should be ready to study';
+      if (!window.Practice.isDue(c)) return 'a card in a new deck is not due today';
     }
     return null;
   });

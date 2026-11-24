@@ -202,8 +202,17 @@
     return d;
   }
 
+  // A lesson built from a topic and a grade. No packId on purpose: a maths
+  // topic can be asked for again and again, and each time should be a new
+  // deck of fresh questions rather than a row that says "already added".
+  function deckFromLesson(made) {
+    const d = newDeck(made.name, (made.cards || []).map((c) => newCard(c.q, c.a)));
+    d.lessonId = made.topicId;
+    return d;
+  }
+
   global.Practice = {
-    packs: packs, deckFromPack: deckFromPack,
+    packs: packs, deckFromPack: deckFromPack, deckFromLesson: deckFromLesson,
     parse: parse, split: split, stripLeading: stripLeading,
     newCard: newCard, newDeck: newDeck,
     markCorrect: markCorrect, markWrong: markWrong,

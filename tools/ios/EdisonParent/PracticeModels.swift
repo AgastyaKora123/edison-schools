@@ -76,6 +76,12 @@ struct Deck: Codable, Identifiable, Hashable {
     /// an optional one decodes as nil rather than throwing away the file.
     var packId: String? = nil
 
+    /// Set when this deck was built from a topic and a grade. Kept so a deck
+    /// can say where it came from; not used to stop a second one being made,
+    /// because asking for twenty fresh sums again is the whole point.
+    /// Optional for the same reason as packId: older saved files lack it.
+    var lessonId: String? = nil
+
     /// The cards waiting today, hardest first.
     ///
     /// Low boxes first means the things being got wrong come up while there

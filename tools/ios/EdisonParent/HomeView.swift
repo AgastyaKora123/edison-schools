@@ -205,8 +205,12 @@ struct HomeView: View {
     private var practiceDetail: String {
         let decks = practice.decks.count
         if decks == 0 {
-            // Since 1.3 there is something to practise without writing
-            // anything first, and this card is the only place that gets said.
+            // There is something to practise without writing anything first,
+            // and this card is the only place that gets said. Naming a topic
+            // is the quickest way in, so it leads.
+            if !LessonLibrary.all.isEmpty {
+                return "Name a topic and a grade"
+            }
             return PackLibrary.all.isEmpty
                 ? "Turn your notes into questions"
                 : "Your notes, or a set already written"

@@ -1270,6 +1270,7 @@
       list.appendChild(row);
     });
 
+    renderLessonMaker();
     renderPacks();
   }
 
@@ -1320,6 +1321,114 @@
         if (taken) return;
         decks.push(Practice.deckFromPack(p));
         Practice.save(decks);
+        renderDecks();
+        refreshPracticeCard();
+      });
+
+      list.appendChild(row);
+    });
+  }
+
+  // ---- name a topic and a grade
+
+  // Remembered between visits, because a child is in one grade all year and
+  // picking it every single time would be a small daily annoyance.
+  const LESSON_GRADE_KEY = 'lessonGrade';
+
+  function lessonGrade() {
+    const saved = parseInt(localStorage.getItem(LESSON_GRADE_KEY) || '', 10);
+    const allowed = window.Lessons ? Lessons.grades() : [];
+    if (allowed.indexOf(saved) !== -1) return saved;
+    return allowed.length ? allowed[Math.floor(allowed.length / 2)] : 5;
+  }
+
+  function renderLessonMaker() {
+    const box = el('lesson-offer');
+    const field = el('lesson-topic');
+    const grade = el('lesson-grade');
+    if (!box || !field || !grade || !window.Lessons) return;
+
+    const grades = Lessons.grades();
+    box.hidden = Lessons.all().length === 0;
+    if (box.hidden) return;
+
+    if (!grade.options.length) {
+      grades.forEach((g) => {
+        const o = document.createElement('option');
+        o.value = String(g);
+        o.textContent = 'Grade ' + g;
+        grade.appendChild(o);
+      });
+      grade.value = String(lessonGrade());
+      grade.addEventListener('change', () => {
+        try { localStorage.setItem(LESSON_GRADE_KEY, grade.value); } catch (e) { /* private window */ }
+        renderLessonMatches();
+      });
+      field.addEventListener('input', renderLessonMatches);
+    }
+    renderLessonMatches();
+  }
+
+  function renderLessonMatches() {
+    const list = el('lesson-matches');
+    const note = el('lesson-note');
+    const field = el('lesson-topic');
+    const grade = parseInt(el('lesson-grade').value, 10);
+    if (!list) return;
+
+    const typed = field.value.trim();
+    const found = Lessons.search(typed, grade);
+    list.innerHTML = '';
+
+    if (!found.length) {
+      note.textContent = typed
+        ? 'Nothing here for "' + typed + '" in grade ' + grade +
+          '. Try a simpler word, another grade, or write your own notes above.'
+        : '';
+      return;
+    }
+
+    note.textContent = typed
+      ? ''
+      : 'Anything in grade ' + grade + '. Start typing to narrow it down.';
+
+    // Showing everything when the box is empty would bury the rest of the
+    // screen, so an untyped list is capped.
+    const shown = typed ? found : found.slice(0, 4);
+
+    shown.forEach((t) => {
+      const row = document.createElement('button');
+      row.className = 'deck';
+      row.type = 'button';
+
+      const text = document.createElement('span');
+      text.className = 'deck-text';
+
+      const tag = document.createElement('span');
+      tag.className = 'deck-tag';
+      tag.textContent = t.subject;
+
+      const name = document.createElement('b');
+      name.textContent = t.name;
+
+      const sub = document.createElement('small');
+      sub.textContent = t.make
+        ? '20 questions, different every time · ' + (t.note || '')
+        : (t.cards || []).length + ' cards · ' + (t.note || '');
+
+      text.appendChild(tag);
+      text.appendChild(name);
+      text.appendChild(sub);
+      row.appendChild(text);
+
+      row.addEventListener('click', () => {
+        // A fresh seed each time, so asking twice gives two different sets.
+        const seed = (Date.now() % 2147483647) || 1;
+        const made = Lessons.make(t.id, grade, 20, seed);
+        if (!made || !made.cards.length) return;
+        decks.push(Practice.deckFromLesson(made));
+        Practice.save(decks);
+        field.value = '';
         renderDecks();
         refreshPracticeCard();
       });

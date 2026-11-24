@@ -1,0 +1,271 @@
+{
+  "version": 1,
+  "note": "Topics you can ask for by name and grade. Two kinds. A topic with a 'make' field is worked out by the app itself, so it never runs out of questions and never gets a fact wrong - the parameters per grade are in 'byGrade'. A topic with 'cards' is written out here. Both are copied into a deck of the learner's own, so their progress survives an update. Everything here is original writing.",
+  "grades": [3, 4, 5, 6, 7, 8],
+  "topics": [
+    {
+      "id": "times-tables",
+      "name": "Times tables",
+      "subject": "Maths",
+      "note": "Multiplication facts.",
+      "make": "timesTables",
+      "byGrade": {
+        "3": { "low": 2, "high": 9 },
+        "4": { "low": 2, "high": 12 },
+        "5": { "low": 4, "high": 12 },
+        "6": { "low": 6, "high": 12 },
+        "7": { "low": 6, "high": 12 },
+        "8": { "low": 6, "high": 12 }
+      }
+    },
+    {
+      "id": "division-facts",
+      "name": "Division facts",
+      "subject": "Maths",
+      "note": "Dividing without a remainder.",
+      "make": "division",
+      "byGrade": {
+        "3": { "low": 2, "high": 5 },
+        "4": { "low": 2, "high": 9 },
+        "5": { "low": 2, "high": 12 },
+        "6": { "low": 3, "high": 12 },
+        "7": { "low": 3, "high": 12 },
+        "8": { "low": 3, "high": 12 }
+      }
+    },
+    {
+      "id": "adding-subtracting",
+      "name": "Adding and subtracting",
+      "subject": "Maths",
+      "note": "Mental arithmetic, sized to the grade.",
+      "make": "addSubtract",
+      "byGrade": {
+        "3": { "max": 99 },
+        "4": { "max": 999 },
+        "5": { "max": 9999 },
+        "6": { "max": 9999 },
+        "7": { "max": 99999 },
+        "8": { "max": 99999 }
+      }
+    },
+    {
+      "id": "rounding",
+      "name": "Rounding",
+      "subject": "Maths",
+      "note": "Rounding to the nearest ten, hundred or thousand.",
+      "make": "rounding",
+      "byGrade": {
+        "3": { "to": 10, "max": 999 },
+        "4": { "to": 100, "max": 9999 },
+        "5": { "to": 1000, "max": 99999 },
+        "6": { "to": 1000, "max": 99999 },
+        "7": { "to": 1000, "max": 999999 },
+        "8": { "to": 1000, "max": 999999 }
+      }
+    },
+    {
+      "id": "place-value",
+      "name": "Place value",
+      "subject": "Maths",
+      "note": "Which digit sits in which place.",
+      "make": "placeValue",
+      "byGrade": {
+        "3": { "digits": 3 },
+        "4": { "digits": 4 },
+        "5": { "digits": 5 },
+        "6": { "digits": 6 },
+        "7": { "digits": 6 },
+        "8": { "digits": 6 }
+      }
+    },
+    {
+      "id": "simplifying-fractions",
+      "name": "Simplifying fractions",
+      "subject": "Maths",
+      "note": "Writing a fraction in its lowest terms.",
+      "make": "simplifyFraction",
+      "byGrade": {
+        "4": { "maxDenominator": 12 },
+        "5": { "maxDenominator": 20 },
+        "6": { "maxDenominator": 36 },
+        "7": { "maxDenominator": 48 },
+        "8": { "maxDenominator": 48 }
+      }
+    },
+    {
+      "id": "percent-of",
+      "name": "Percentages",
+      "subject": "Maths",
+      "note": "Finding a percentage of a number.",
+      "make": "percentOf",
+      "byGrade": {
+        "5": { "percents": [10, 25, 50], "max": 200 },
+        "6": { "percents": [10, 20, 25, 50, 75], "max": 300 },
+        "7": { "percents": [5, 10, 15, 20, 25, 40, 50, 75], "max": 400 },
+        "8": { "percents": [5, 10, 15, 20, 25, 30, 40, 60, 75, 90], "max": 800 }
+      }
+    },
+    {
+      "id": "area-perimeter",
+      "name": "Area and perimeter",
+      "subject": "Maths",
+      "note": "Rectangles.",
+      "make": "areaPerimeter",
+      "byGrade": {
+        "3": { "max": 10 },
+        "4": { "max": 15 },
+        "5": { "max": 20 },
+        "6": { "max": 25 },
+        "7": { "max": 30 },
+        "8": { "max": 30 }
+      }
+    },
+
+    {
+      "id": "planets",
+      "name": "The planets",
+      "subject": "Science",
+      "grades": [3, 4, 5, 6],
+      "note": "The solar system, in order.",
+      "cards": [
+        { "q": "Which planet is closest to the Sun?", "a": "Mercury" },
+        { "q": "Which planet is second from the Sun?", "a": "Venus" },
+        { "q": "Which planet is third from the Sun?", "a": "Earth" },
+        { "q": "Which planet is fourth from the Sun?", "a": "Mars" },
+        { "q": "Which planet is fifth from the Sun?", "a": "Jupiter" },
+        { "q": "Which planet is sixth from the Sun?", "a": "Saturn" },
+        { "q": "Which planet is seventh from the Sun?", "a": "Uranus" },
+        { "q": "Which planet is eighth from the Sun?", "a": "Neptune" },
+        { "q": "Which is the largest planet?", "a": "Jupiter" },
+        { "q": "Which is the smallest planet?", "a": "Mercury" },
+        { "q": "Which planet is known for its bright rings?", "a": "Saturn" },
+        { "q": "Which planet is sometimes called the red planet?", "a": "Mars" },
+        { "q": "Which planet is the hottest?", "a": "Venus, because its thick air traps heat" },
+        { "q": "How many planets orbit our Sun?", "a": "Eight" },
+        { "q": "What is at the centre of our solar system?", "a": "The Sun, which is a star" },
+        { "q": "Which four planets are called the rocky planets?", "a": "Mercury, Venus, Earth and Mars" },
+        { "q": "Which four planets are called the gas giants?", "a": "Jupiter, Saturn, Uranus and Neptune" }
+      ]
+    },
+    {
+      "id": "water-cycle",
+      "name": "The water cycle",
+      "subject": "Science",
+      "grades": [3, 4, 5],
+      "note": "How water moves around the Earth.",
+      "cards": [
+        { "q": "What is evaporation?", "a": "Water heating up and turning into vapour that rises into the air" },
+        { "q": "What is condensation?", "a": "Water vapour cooling down and turning back into tiny drops, which form clouds" },
+        { "q": "What is precipitation?", "a": "Water falling from clouds as rain, snow, sleet or hail" },
+        { "q": "What is collection?", "a": "Water gathering in oceans, lakes, rivers and underground" },
+        { "q": "What gives the water cycle its energy?", "a": "The Sun" },
+        { "q": "What are clouds made of?", "a": "Billions of tiny water drops or ice crystals" },
+        { "q": "What is run-off?", "a": "Water flowing over the ground into streams and rivers" },
+        { "q": "Does the water cycle ever stop?", "a": "No. The same water has been going round for billions of years" },
+        { "q": "What is groundwater?", "a": "Water that soaks into the soil and is stored in the rock below" },
+        { "q": "What is transpiration?", "a": "Water vapour released into the air by plants, mostly through their leaves" }
+      ]
+    },
+    {
+      "id": "states-of-matter",
+      "name": "States of matter",
+      "subject": "Science",
+      "grades": [3, 4, 5, 6],
+      "note": "Solids, liquids and gases.",
+      "cards": [
+        { "q": "What are the three everyday states of matter?", "a": "Solid, liquid and gas" },
+        { "q": "How are the particles arranged in a solid?", "a": "Packed closely together in a fixed pattern, only able to vibrate" },
+        { "q": "How are the particles arranged in a liquid?", "a": "Close together but able to slide past each other" },
+        { "q": "How are the particles arranged in a gas?", "a": "Far apart and moving quickly in all directions" },
+        { "q": "Does a liquid have a fixed shape?", "a": "No. It takes the shape of its container, but its volume stays the same" },
+        { "q": "What is melting?", "a": "A solid turning into a liquid when it is heated" },
+        { "q": "What is freezing?", "a": "A liquid turning into a solid when it is cooled" },
+        { "q": "What is boiling?", "a": "A liquid turning into a gas throughout, when it reaches its boiling point" },
+        { "q": "At what temperature does water freeze?", "a": "0 degrees Celsius, or 32 degrees Fahrenheit" },
+        { "q": "At what temperature does water boil at sea level?", "a": "100 degrees Celsius, or 212 degrees Fahrenheit" },
+        { "q": "What happens to particles when something is heated?", "a": "They gain energy and move faster" },
+        { "q": "What is condensation, in terms of states?", "a": "A gas turning back into a liquid when it cools" }
+      ]
+    },
+    {
+      "id": "parts-of-speech",
+      "name": "Parts of speech",
+      "subject": "English",
+      "grades": [3, 4, 5, 6],
+      "note": "What each kind of word does in a sentence.",
+      "cards": [
+        { "q": "What is a noun?", "a": "A word for a person, place, thing or idea" },
+        { "q": "What is a verb?", "a": "A word for an action or a state of being" },
+        { "q": "What is an adjective?", "a": "A word that describes a noun" },
+        { "q": "What is an adverb?", "a": "A word that describes a verb, an adjective or another adverb" },
+        { "q": "What is a pronoun?", "a": "A word used in place of a noun, like she, it or they" },
+        { "q": "What is a preposition?", "a": "A word showing where or when something is, like under, before or between" },
+        { "q": "What is a conjunction?", "a": "A word that joins parts of a sentence, like and, but or because" },
+        { "q": "What is an interjection?", "a": "A short word showing sudden feeling, like ouch or wow" },
+        { "q": "What is a proper noun?", "a": "The name of a particular person, place or thing, and it takes a capital letter" },
+        { "q": "In 'the tall tree swayed slowly', which word is the adjective?", "a": "Tall" },
+        { "q": "In 'the tall tree swayed slowly', which word is the adverb?", "a": "Slowly" },
+        { "q": "In 'the tall tree swayed slowly', which word is the verb?", "a": "Swayed" }
+      ]
+    },
+    {
+      "id": "figurative-language",
+      "name": "Figurative language",
+      "subject": "English",
+      "grades": [4, 5, 6, 7, 8],
+      "note": "The tricks writers use.",
+      "cards": [
+        { "q": "What is a simile?", "a": "A comparison using like or as, such as 'quiet as a mouse'" },
+        { "q": "What is a metaphor?", "a": "Saying one thing is another, such as 'the classroom was a zoo'" },
+        { "q": "What is personification?", "a": "Giving human qualities to something that is not human, such as 'the wind whispered'" },
+        { "q": "What is hyperbole?", "a": "Deliberate exaggeration, such as 'I have told you a million times'" },
+        { "q": "What is alliteration?", "a": "Repeating the same starting sound, such as 'six slippery seals'" },
+        { "q": "What is onomatopoeia?", "a": "A word that sounds like the noise it names, such as buzz or crash" },
+        { "q": "What is an idiom?", "a": "A phrase that means something different from its words, such as 'break the ice'" },
+        { "q": "What is symbolism?", "a": "Using an object to stand for a bigger idea, such as a dove for peace" },
+        { "q": "Is 'her smile was sunshine' a simile or a metaphor?", "a": "A metaphor, because it says the smile was sunshine rather than like it" },
+        { "q": "Is 'as busy as a bee' a simile or a metaphor?", "a": "A simile, because it uses the word as" }
+      ]
+    },
+    {
+      "id": "branches-of-government",
+      "name": "Branches of government",
+      "subject": "Social studies",
+      "grades": [4, 5, 6, 7, 8],
+      "note": "How the US government is split up.",
+      "cards": [
+        { "q": "What are the three branches of the US government?", "a": "Legislative, executive and judicial" },
+        { "q": "What does the legislative branch do?", "a": "Makes the laws" },
+        { "q": "What does the executive branch do?", "a": "Carries out the laws" },
+        { "q": "What does the judicial branch do?", "a": "Decides what the laws mean" },
+        { "q": "Which branch is Congress part of?", "a": "The legislative branch" },
+        { "q": "What are the two houses of Congress?", "a": "The Senate and the House of Representatives" },
+        { "q": "Who leads the executive branch?", "a": "The President" },
+        { "q": "What is the highest court in the judicial branch?", "a": "The Supreme Court" },
+        { "q": "How many senators does each state get?", "a": "Two, whatever the size of the state" },
+        { "q": "What is meant by checks and balances?", "a": "Each branch can limit the power of the other two, so no branch grows too strong" },
+        { "q": "What is a veto?", "a": "The President refusing to sign a bill into law" },
+        { "q": "Can Congress overturn a veto?", "a": "Yes, with a two-thirds vote in both houses" }
+      ]
+    },
+    {
+      "id": "landforms",
+      "name": "Landforms",
+      "subject": "Social studies",
+      "grades": [3, 4, 5],
+      "note": "The shapes the land takes.",
+      "cards": [
+        { "q": "What is a peninsula?", "a": "Land with water on three sides" },
+        { "q": "What is an island?", "a": "Land with water all the way around it" },
+        { "q": "What is a plateau?", "a": "High flat land that rises sharply above the land around it" },
+        { "q": "What is a valley?", "a": "Low land between hills or mountains" },
+        { "q": "What is a delta?", "a": "Flat land at a river's mouth, built from the mud it drops there" },
+        { "q": "What is a canyon?", "a": "A deep narrow valley with steep sides, usually cut by a river" },
+        { "q": "What is an isthmus?", "a": "A narrow strip of land joining two larger pieces of land" },
+        { "q": "What is a strait?", "a": "A narrow channel of water joining two larger bodies of water" },
+        { "q": "What is a tributary?", "a": "A smaller river or stream that flows into a bigger one" },
+        { "q": "What is a basin?", "a": "A dip in the land where water collects, or the whole area a river drains" }
+      ]
+    }
+  ]
+}
