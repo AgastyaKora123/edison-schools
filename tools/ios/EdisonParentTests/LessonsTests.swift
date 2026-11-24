@@ -104,8 +104,15 @@ final class LessonsTests: XCTestCase {
         }
         let n = ints(q)
 
-        // Fractions are the one topic whose answer is not a plain number.
-        if topicId == "simplifying-fractions" {
+        /// Minus signs here are the typographic one, not a hyphen, so a
+        /// negative answer will not parse as a number until it is swapped.
+        func asInt(_ s: String) -> Int? {
+            Int(s.replacingOccurrences(of: "\u{2212}", with: "-"))
+        }
+
+        // The topics whose answer is not a plain number come first.
+        switch topicId {
+        case "simplifying-fractions":
             let parts = a.split(separator: "/").compactMap { Int($0) }
             guard parts.count == 2, n.count == 2, n[1] != 0 else { return nil }
             let g = gcd(n[0], n[1])
@@ -113,9 +120,42 @@ final class LessonsTests: XCTestCase {
                 && parts[1] == n[1] / g
                 && gcd(parts[0], parts[1]) == 1
                 && parts[1] != n[1]          // it really was reducible
+
+        case "adding-fractions":
+            // "a/d + b/d", answered reduced, or "1" when it makes a whole.
+            guard n.count == 4, n[1] == n[3], n[1] != 0 else { return nil }
+            let top = n[0] + n[2], d = n[1]
+            if top > d { return false }
+            if top == d { return a == "1" }
+            let g = gcd(top, d)
+            return a == "\(top / g)/\(d / g)"
+
+        case "prime-or-composite":
+            guard n.count == 1, n[0] >= 2 else { return nil }
+            var prime = true
+            var i = 2
+            while i * i <= n[0] {
+                if n[0] % i == 0 { prime = false; break }
+                i += 1
+            }
+            return a == (prime ? "Prime" : "Composite")
+
+        case "negative-numbers":
+            // Signed operands, so a plain scan for digits will not do.
+            let plain = q.replacingOccurrences(of: "\u{2212}", with: "-")
+            let plus = plain.contains(" + ")
+            let parts = plain.components(separatedBy: plus ? " + " : " - ")
+            guard parts.count == 2,
+                  let left = Int(parts[0]),
+                  let right = Int(parts[1]),
+                  let got = asInt(a) else { return nil }
+            return got == (plus ? left + right : left - right)
+
+        default:
+            break
         }
 
-        guard let answer = Int(a) else { return nil }
+        guard let answer = asInt(a) else { return nil }
 
         switch topicId {
         case "times-tables":
@@ -159,6 +199,25 @@ final class LessonsTests: XCTestCase {
             if q.contains("area") { return answer == n[0] * n[1] }
             guard q.contains("perimeter") else { return nil }
             return answer == 2 * (n[0] + n[1])
+
+        case "one-step-equations":
+            // Four shapes. Every number in them is non-negative by design.
+            guard n.count == 2 else { return nil }
+            if q.contains("x + ") { return answer == n[1] - n[0] }
+            if q.contains("x \u{2212} ") { return answer == n[1] + n[0] }
+            if q.contains("x \u{00f7} ") { return answer == n[1] * n[0] }
+            guard q.contains("x = "), n[0] != 0 else { return nil }
+            return answer == n[1] / n[0] && n[1] % n[0] == 0
+
+        case "exponents":
+            guard n.count == 2 else { return nil }
+            var value = 1
+            for _ in 0..<n[1] { value *= n[0] }
+            return answer == value
+
+        case "volume":
+            guard n.count == 3 else { return nil }
+            return answer == n[0] * n[1] * n[2]
 
         default:
             return nil

@@ -57,6 +57,10 @@
 
   function gcd(a, b) { while (b) { var t = a % b; a = b; b = t; } return a; }
 
+  // A minus sign, not a hyphen. The same character is used for subtraction
+  // everywhere in here, so a question and its answer look consistent.
+  function neg(n) { return n < 0 ? '−' + Math.abs(n) : String(n); }
+
   var PLACES = ['ones', 'tens', 'hundreds', 'thousands',
                 'ten thousands', 'hundred thousands'];
 
@@ -128,6 +132,93 @@
       return {
         q: 'What is ' + pc + '% of ' + n + '?',
         a: String((pc * n) / 100)
+      };
+    },
+
+    // One step to get x on its own. Four shapes, so it is not just the
+    // same sum dressed differently twenty times.
+    oneStepEquations: function (r, p) {
+      var x = r.between(1, p.max);
+      var shape = r.next() % 4;
+      if (shape === 0) {
+        var add = r.between(1, p.max);
+        return { q: 'Solve: x + ' + add + ' = ' + (x + add), a: String(x) };
+      }
+      if (shape === 1) {
+        // Never more than x, so the right-hand side cannot go negative.
+        // Grade 6 meets this before it meets negative numbers.
+        var take = r.between(1, x);
+        return { q: 'Solve: x − ' + take + ' = ' + (x - take), a: String(x) };
+      }
+      if (shape === 2) {
+        var by = r.between(2, 12);
+        return { q: 'Solve: ' + by + 'x = ' + (by * x), a: String(x) };
+      }
+      var div = r.between(2, 12);
+      return { q: 'Solve: x ÷ ' + div + ' = ' + x, a: String(div * x) };
+    },
+
+    // The second number is always positive, so a question never reads
+    // "5 + −3", which is a different skill and a different lesson.
+    negativeNumbers: function (r, p) {
+      var a = r.between(-p.max, p.max);
+      var b = r.between(1, p.max);
+      var plus = r.next() % 2 === 0;
+      var result = plus ? a + b : a - b;
+      return {
+        q: neg(a) + (plus ? ' + ' : ' − ') + b,
+        a: neg(result)
+      };
+    },
+
+    exponents: function (r, p) {
+      var base = r.between(p.low, p.high);
+      var power = r.between(2, p.maxPower || 3);
+      var value = 1;
+      for (var i = 0; i < power; i++) value *= base;
+      return {
+        q: base + ' to the power of ' + power,
+        a: String(value)
+      };
+    },
+
+    volumeBox: function (r, p) {
+      var a = r.between(2, p.max);
+      var b = r.between(2, p.max);
+      var c = r.between(2, p.max);
+      return {
+        q: 'A box is ' + a + ' by ' + b + ' by ' + c + '. What is its volume?',
+        a: String(a * b * c)
+      };
+    },
+
+    // Same denominator only. The answer is always given in its simplest
+    // form, because that is what a teacher will be marking.
+    addFractionsSame: function (r, p) {
+      var d = r.between(3, p.maxDenominator);
+      var a = r.between(1, d - 1);
+      var b = r.between(1, d - a);
+      var top = a + b;
+      var answer;
+      if (top === d) {
+        answer = '1';
+      } else {
+        var g = gcd(top, d);
+        answer = (top / g) + '/' + (d / g);
+      }
+      return { q: a + '/' + d + ' + ' + b + '/' + d, a: answer };
+    },
+
+    primeOrComposite: function (r, p) {
+      // From 10 up, so the answer is never obvious at a glance.
+      var n = r.between(10, p.max);
+      var prime = true;
+      for (var i = 2; i * i <= n; i++) {
+        if (n % i === 0) { prime = false; break; }
+      }
+      return {
+        q: 'Is ' + n + ' prime or composite?',
+        a: prime ? 'Prime' : 'Composite'
       };
     },
 

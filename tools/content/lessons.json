@@ -122,6 +122,82 @@
     },
 
     {
+      "id": "one-step-equations",
+      "name": "Solving for x",
+      "subject": "Maths",
+      "note": "One step to get x on its own.",
+      "make": "oneStepEquations",
+      "byGrade": {
+        "6": { "max": 20 },
+        "7": { "max": 50 },
+        "8": { "max": 100 }
+      }
+    },
+    {
+      "id": "negative-numbers",
+      "name": "Negative numbers",
+      "subject": "Maths",
+      "note": "Adding and subtracting below zero.",
+      "make": "negativeNumbers",
+      "byGrade": {
+        "6": { "max": 20 },
+        "7": { "max": 50 },
+        "8": { "max": 100 }
+      }
+    },
+    {
+      "id": "exponents",
+      "name": "Powers",
+      "subject": "Maths",
+      "note": "A number multiplied by itself.",
+      "make": "exponents",
+      "byGrade": {
+        "6": { "low": 2, "high": 12, "maxPower": 3 },
+        "7": { "low": 2, "high": 12, "maxPower": 4 },
+        "8": { "low": 2, "high": 12, "maxPower": 4 }
+      }
+    },
+    {
+      "id": "volume",
+      "name": "Volume",
+      "subject": "Maths",
+      "note": "How much fits inside a box.",
+      "make": "volumeBox",
+      "byGrade": {
+        "5": { "max": 8 },
+        "6": { "max": 10 },
+        "7": { "max": 12 },
+        "8": { "max": 15 }
+      }
+    },
+    {
+      "id": "adding-fractions",
+      "name": "Adding fractions",
+      "subject": "Maths",
+      "note": "Same denominator, answer in simplest form.",
+      "make": "addFractionsSame",
+      "byGrade": {
+        "4": { "maxDenominator": 10 },
+        "5": { "maxDenominator": 12 },
+        "6": { "maxDenominator": 16 }
+      }
+    },
+    {
+      "id": "prime-or-composite",
+      "name": "Prime numbers",
+      "subject": "Maths",
+      "note": "Telling primes from the rest.",
+      "make": "primeOrComposite",
+      "byGrade": {
+        "4": { "max": 50 },
+        "5": { "max": 100 },
+        "6": { "max": 150 },
+        "7": { "max": 200 },
+        "8": { "max": 200 }
+      }
+    },
+
+    {
       "id": "planets",
       "name": "The planets",
       "subject": "Science",
@@ -246,6 +322,233 @@
         { "q": "What is meant by checks and balances?", "a": "Each branch can limit the power of the other two, so no branch grows too strong" },
         { "q": "What is a veto?", "a": "The President refusing to sign a bill into law" },
         { "q": "Can Congress overturn a veto?", "a": "Yes, with a two-thirds vote in both houses" }
+      ]
+    },
+    {
+      "id": "cells",
+      "name": "Cells",
+      "subject": "Science",
+      "grades": [5, 6, 7, 8],
+      "note": "The parts of a cell and what each does.",
+      "cards": [
+        { "q": "What is a cell?", "a": "The smallest unit of life. Every living thing is made of one or more" },
+        { "q": "What does the nucleus do?", "a": "Holds the cell's DNA and controls what the cell does" },
+        { "q": "What does the cell membrane do?", "a": "Surrounds the cell and controls what goes in and out" },
+        { "q": "What is cytoplasm?", "a": "The jelly-like fluid filling the cell, where most of its parts sit" },
+        { "q": "What do mitochondria do?", "a": "Release energy from food for the cell to use" },
+        { "q": "What do chloroplasts do, and which cells have them?", "a": "Capture light to make food. Plant cells have them; animal cells do not" },
+        { "q": "What does the cell wall do, and which cells have one?", "a": "Gives a stiff outer support. Plant cells have one; animal cells do not" },
+        { "q": "What is a vacuole?", "a": "A storage sac. Plant cells usually have one large one holding water" },
+        { "q": "Name two things a plant cell has that an animal cell does not.", "a": "A cell wall and chloroplasts" },
+        { "q": "What is the difference between unicellular and multicellular?", "a": "Unicellular means made of one cell; multicellular means made of many" },
+        { "q": "What is a tissue?", "a": "A group of similar cells working together on the same job" },
+        { "q": "Put these in order from smallest: organ, cell, tissue, organ system.", "a": "Cell, tissue, organ, organ system" }
+      ]
+    },
+    {
+      "id": "body-systems",
+      "name": "Body systems",
+      "subject": "Science",
+      "grades": [4, 5, 6, 7],
+      "note": "What each system in the body is for.",
+      "cards": [
+        { "q": "What does the skeletal system do?", "a": "Supports the body, protects the organs, and lets it move with the muscles" },
+        { "q": "What does the muscular system do?", "a": "Moves the body by pulling on bones" },
+        { "q": "What does the circulatory system do?", "a": "Carries blood around the body, bringing oxygen and food and taking waste away" },
+        { "q": "What does the respiratory system do?", "a": "Takes in oxygen and gets rid of carbon dioxide" },
+        { "q": "What does the digestive system do?", "a": "Breaks food down so the body can absorb what it needs" },
+        { "q": "What does the nervous system do?", "a": "Carries signals between the brain and the rest of the body" },
+        { "q": "Which organ pumps blood?", "a": "The heart" },
+        { "q": "Which organs take oxygen from the air?", "a": "The lungs" },
+        { "q": "What do the kidneys do?", "a": "Filter waste out of the blood and make urine" },
+        { "q": "Where does most food absorption happen?", "a": "In the small intestine" },
+        { "q": "What is the largest organ of the body?", "a": "The skin" },
+        { "q": "What is the job of red blood cells?", "a": "To carry oxygen" }
+      ]
+    },
+    {
+      "id": "photosynthesis",
+      "name": "Photosynthesis",
+      "subject": "Science",
+      "grades": [4, 5, 6, 7],
+      "note": "How plants make their own food.",
+      "cards": [
+        { "q": "What is photosynthesis?", "a": "How a plant uses light to make its own food" },
+        { "q": "What three things does a plant need for photosynthesis?", "a": "Light, water and carbon dioxide" },
+        { "q": "What two things does photosynthesis produce?", "a": "Sugar, which is the plant's food, and oxygen" },
+        { "q": "Where in the plant does most photosynthesis happen?", "a": "In the leaves" },
+        { "q": "What is chlorophyll?", "a": "The green substance in a leaf that captures light" },
+        { "q": "Why are most leaves green?", "a": "Chlorophyll reflects green light and absorbs the rest" },
+        { "q": "Where does the plant get its water?", "a": "From the soil, through its roots" },
+        { "q": "Where does the plant get carbon dioxide?", "a": "From the air, through tiny holes in its leaves" },
+        { "q": "Why does photosynthesis matter to animals?", "a": "It makes the oxygen they breathe and the food at the bottom of every food chain" },
+        { "q": "Can photosynthesis happen in the dark?", "a": "No. Without light the plant cannot make food" }
+      ]
+    },
+    {
+      "id": "forces-motion",
+      "name": "Forces and motion",
+      "subject": "Science",
+      "grades": [5, 6, 7, 8],
+      "note": "Pushes, pulls and what they do.",
+      "cards": [
+        { "q": "What is a force?", "a": "A push or a pull on an object" },
+        { "q": "What is friction?", "a": "A force that resists movement when two surfaces rub together" },
+        { "q": "What is gravity?", "a": "The force pulling objects towards each other. On Earth it pulls things down" },
+        { "q": "What happens when forces on an object are balanced?", "a": "Its motion does not change - it stays still, or keeps moving the same way" },
+        { "q": "What happens when forces are unbalanced?", "a": "The object speeds up, slows down, or changes direction" },
+        { "q": "What is speed?", "a": "How far something travels in a given time" },
+        { "q": "What is acceleration?", "a": "A change in speed or direction" },
+        { "q": "What is inertia?", "a": "The tendency of an object to keep doing what it is already doing" },
+        { "q": "What is the difference between mass and weight?", "a": "Mass is how much matter is in something. Weight is the force of gravity on that mass" },
+        { "q": "Why does a ball rolling on grass stop sooner than on ice?", "a": "Grass creates more friction" },
+        { "q": "In which direction does friction act?", "a": "Opposite to the direction of movement" }
+      ]
+    },
+    {
+      "id": "food-chains",
+      "name": "Food chains",
+      "subject": "Science",
+      "grades": [3, 4, 5, 6],
+      "note": "Who eats what, and where the energy goes.",
+      "cards": [
+        { "q": "What is a producer?", "a": "A living thing that makes its own food, like a plant" },
+        { "q": "What is a consumer?", "a": "A living thing that eats other living things" },
+        { "q": "What is a decomposer?", "a": "Something that breaks down dead material, like a fungus or bacteria" },
+        { "q": "What is a herbivore?", "a": "An animal that eats only plants" },
+        { "q": "What is a carnivore?", "a": "An animal that eats only other animals" },
+        { "q": "What is an omnivore?", "a": "An animal that eats both plants and animals" },
+        { "q": "What is a predator?", "a": "An animal that hunts and eats other animals" },
+        { "q": "What is prey?", "a": "An animal that is hunted and eaten" },
+        { "q": "Where does the energy in a food chain start?", "a": "With the Sun" },
+        { "q": "What is a food web?", "a": "Many food chains linked together, showing how they overlap" },
+        { "q": "What is a habitat?", "a": "The place where a living thing naturally lives" },
+        { "q": "What usually happens if a predator is removed from a habitat?", "a": "Its prey increases, which can then strip the plants they feed on" }
+      ]
+    },
+    {
+      "id": "the-constitution",
+      "name": "The Constitution",
+      "subject": "Social studies",
+      "grades": [5, 6, 7, 8],
+      "note": "The document and the rights in it.",
+      "cards": [
+        { "q": "What is the Constitution?", "a": "The document setting out how the US government works and what powers it has" },
+        { "q": "What is the Bill of Rights?", "a": "The first ten amendments, listing rights the government may not take away" },
+        { "q": "What is an amendment?", "a": "A change or addition to the Constitution" },
+        { "q": "How many amendments are there now?", "a": "Twenty-seven" },
+        { "q": "What does the First Amendment protect?", "a": "Freedom of religion, speech, the press, assembly, and petitioning the government" },
+        { "q": "What is the Preamble?", "a": "The opening paragraph, beginning \"We the People\", saying what the Constitution is for" },
+        { "q": "What does federalism mean?", "a": "Power is shared between the national government and the states" },
+        { "q": "What was the Constitutional Convention?", "a": "The 1787 meeting in Philadelphia where the Constitution was written" },
+        { "q": "What came before the Constitution?", "a": "The Articles of Confederation, which left the national government too weak" },
+        { "q": "What does \"separation of powers\" mean?", "a": "Splitting government into three branches so no one part holds it all" },
+        { "q": "Who has to approve an amendment?", "a": "Two-thirds of Congress, then three-quarters of the states" }
+      ]
+    },
+    {
+      "id": "thirteen-colonies",
+      "name": "The thirteen colonies",
+      "subject": "Social studies",
+      "grades": [4, 5, 6, 7],
+      "note": "The colonies and the road to independence.",
+      "cards": [
+        { "q": "How many colonies declared independence in 1776?", "a": "Thirteen" },
+        { "q": "What were the three colonial regions?", "a": "New England, the Middle colonies and the Southern colonies" },
+        { "q": "What was the first permanent English settlement in America?", "a": "Jamestown, Virginia, founded in 1607" },
+        { "q": "Why did many New England colonists come to America?", "a": "Largely for religious freedom" },
+        { "q": "What was the economy of the Southern colonies built on?", "a": "Large farms and plantations growing cash crops, worked largely by enslaved people" },
+        { "q": "What does \"no taxation without representation\" mean?", "a": "Colonists objected to being taxed by a Parliament they had no say in" },
+        { "q": "What was the Boston Tea Party?", "a": "A 1773 protest where colonists threw British tea into Boston Harbour" },
+        { "q": "What is the Declaration of Independence?", "a": "The 1776 document announcing the colonies were free of British rule" },
+        { "q": "Who wrote most of the Declaration of Independence?", "a": "Thomas Jefferson" },
+        { "q": "On what date was it adopted?", "a": "4 July 1776" },
+        { "q": "Which war followed?", "a": "The American Revolutionary War" }
+      ]
+    },
+    {
+      "id": "continents-oceans",
+      "name": "Continents and oceans",
+      "subject": "Social studies",
+      "grades": [3, 4, 5],
+      "note": "The map, at its largest scale.",
+      "cards": [
+        { "q": "How many continents are there?", "a": "Seven" },
+        { "q": "Name the seven continents.", "a": "Africa, Antarctica, Asia, Australia, Europe, North America and South America" },
+        { "q": "Which is the largest continent?", "a": "Asia" },
+        { "q": "Which is the smallest continent?", "a": "Australia" },
+        { "q": "How many oceans are there?", "a": "Five" },
+        { "q": "Name the five oceans.", "a": "Pacific, Atlantic, Indian, Southern and Arctic" },
+        { "q": "Which is the largest ocean?", "a": "The Pacific" },
+        { "q": "Which ocean lies between the Americas and Europe and Africa?", "a": "The Atlantic" },
+        { "q": "Which continent is the United States on?", "a": "North America" },
+        { "q": "What is the equator?", "a": "The imaginary line around the middle of the Earth, halfway between the poles" },
+        { "q": "What are the two halves either side of the equator called?", "a": "The Northern and Southern Hemispheres" }
+      ]
+    },
+    {
+      "id": "prefixes-suffixes",
+      "name": "Prefixes and suffixes",
+      "subject": "English",
+      "grades": [4, 5, 6, 7, 8],
+      "note": "Word parts, and what they do to a word.",
+      "cards": [
+        { "q": "What is a prefix?", "a": "A word part added to the front of a word that changes its meaning" },
+        { "q": "What is a suffix?", "a": "A word part added to the end of a word, often changing its job in a sentence" },
+        { "q": "What does the prefix un- mean?", "a": "Not, or the opposite of" },
+        { "q": "What does the prefix re- mean?", "a": "Again, or back" },
+        { "q": "What does the prefix pre- mean?", "a": "Before" },
+        { "q": "What does the prefix mis- mean?", "a": "Wrongly or badly" },
+        { "q": "What does the prefix sub- mean?", "a": "Under or below" },
+        { "q": "What does the prefix trans- mean?", "a": "Across" },
+        { "q": "What does the suffix -less mean?", "a": "Without" },
+        { "q": "What does the suffix -ful mean?", "a": "Full of" },
+        { "q": "What does the suffix -er often mean on a noun?", "a": "A person or thing that does something, as in teacher" },
+        { "q": "What does the suffix -tion do to a verb?", "a": "Turns it into a noun, as in celebrate becoming celebration" },
+        { "q": "What does \"bi-\" mean?", "a": "Two" },
+        { "q": "What does \"auto-\" mean?", "a": "Self" }
+      ]
+    },
+    {
+      "id": "confused-words",
+      "name": "Words people mix up",
+      "subject": "English",
+      "grades": [4, 5, 6, 7, 8],
+      "note": "The pairs that cost marks.",
+      "cards": [
+        { "q": "When do you use \"their\"?", "a": "To show something belongs to them - their coats" },
+        { "q": "When do you use \"there\"?", "a": "For a place, or to start a sentence - over there, there is a problem" },
+        { "q": "When do you use \"they're\"?", "a": "Only as a short way of saying \"they are\"" },
+        { "q": "When do you use \"your\"?", "a": "To show something belongs to you - your bag" },
+        { "q": "When do you use \"you're\"?", "a": "Only as a short way of saying \"you are\"" },
+        { "q": "When do you use \"its\"?", "a": "To show something belongs to it - the dog wagged its tail" },
+        { "q": "When do you use \"it's\"?", "a": "Only as a short way of saying \"it is\" or \"it has\"" },
+        { "q": "What is the difference between \"accept\" and \"except\"?", "a": "Accept means to take or agree to. Except means apart from" },
+        { "q": "What is the difference between \"affect\" and \"effect\"?", "a": "Affect is usually the verb, to change something. Effect is usually the noun, the result" },
+        { "q": "What is the difference between \"then\" and \"than\"?", "a": "Then is about time. Than is for comparing" },
+        { "q": "What is the difference between \"lose\" and \"loose\"?", "a": "Lose means to misplace or be beaten. Loose means not tight" },
+        { "q": "What is the difference between \"to\", \"too\" and \"two\"?", "a": "To shows direction or goes with a verb, too means also or excessively, two is the number" }
+      ]
+    },
+    {
+      "id": "parts-of-a-story",
+      "name": "Parts of a story",
+      "subject": "English",
+      "grades": [3, 4, 5, 6],
+      "note": "How a story is put together.",
+      "cards": [
+        { "q": "What is the plot?", "a": "The sequence of events in a story" },
+        { "q": "What is the setting?", "a": "Where and when the story takes place" },
+        { "q": "What is a character?", "a": "A person, animal or creature the story is about" },
+        { "q": "What is the conflict?", "a": "The problem or struggle the story is built around" },
+        { "q": "What is the theme?", "a": "The bigger idea or message underneath the story" },
+        { "q": "What is the climax?", "a": "The turning point, where the tension is highest" },
+        { "q": "What is the resolution?", "a": "How the problem is settled and the story closes" },
+        { "q": "What is the protagonist?", "a": "The main character the story follows" },
+        { "q": "What is the antagonist?", "a": "The character or force working against the protagonist" },
+        { "q": "What is first-person narration?", "a": "The story told by a character using \"I\"" },
+        { "q": "What is third-person narration?", "a": "The story told from outside, using \"he\", \"she\" and \"they\"" },
+        { "q": "What is foreshadowing?", "a": "A hint early on about something that happens later" }
       ]
     },
     {

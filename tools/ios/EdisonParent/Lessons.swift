@@ -86,6 +86,7 @@ struct GradeSettings: Codable, Equatable {
     var digits: Int?
     var maxDenominator: Int?
     var percents: [Int]?
+    var maxPower: Int?
 }
 
 struct LessonBook: Codable {
@@ -213,6 +214,81 @@ enum LessonLibrary {
             let n = 20 * r.between(1, steps)
             return LessonCard(q: "What is \(pc)% of \(n)?", a: String(pc * n / 100))
 
+        case "oneStepEquations":
+            // Four shapes, so it is not the same sum dressed differently
+            // twenty times.
+            let x = r.between(1, p.max ?? 20)
+            switch r.next() % 4 {
+            case 0:
+                let add = r.between(1, p.max ?? 20)
+                return LessonCard(q: "Solve: x + \(add) = \(x + add)", a: String(x))
+            case 1:
+                // Never more than x, so the right-hand side cannot go
+                // negative. Grade 6 meets this before negative numbers.
+                let take = r.between(1, x)
+                return LessonCard(q: "Solve: x \u{2212} \(take) = \(x - take)", a: String(x))
+            case 2:
+                let by = r.between(2, 12)
+                return LessonCard(q: "Solve: \(by)x = \(by * x)", a: String(x))
+            default:
+                let div = r.between(2, 12)
+                return LessonCard(q: "Solve: x \u{00f7} \(div) = \(x)", a: String(div * x))
+            }
+
+        case "negativeNumbers":
+            // The second number is always positive, so a question never
+            // reads "5 + −3", which is a different skill and a different
+            // lesson.
+            let max = p.max ?? 20
+            let a = r.between(-max, max)
+            let b = r.between(1, max)
+            let plus = r.next() % 2 == 0
+            let result = plus ? a + b : a - b
+            return LessonCard(q: "\(neg(a))\(plus ? " + " : " \u{2212} ")\(b)",
+                              a: neg(result))
+
+        case "exponents":
+            let base = r.between(p.low ?? 2, p.high ?? 12)
+            let power = r.between(2, p.maxPower ?? 3)
+            var value = 1
+            for _ in 0..<power { value *= base }
+            return LessonCard(q: "\(base) to the power of \(power)", a: String(value))
+
+        case "volumeBox":
+            let a = r.between(2, p.max ?? 8)
+            let b = r.between(2, p.max ?? 8)
+            let c = r.between(2, p.max ?? 8)
+            return LessonCard(q: "A box is \(a) by \(b) by \(c). What is its volume?",
+                              a: String(a * b * c))
+
+        case "addFractionsSame":
+            // Same denominator only. The answer is always in its simplest
+            // form, because that is what a teacher will be marking.
+            let d = r.between(3, p.maxDenominator ?? 10)
+            let a = r.between(1, d - 1)
+            let b = r.between(1, d - a)
+            let top = a + b
+            let answer: String
+            if top == d {
+                answer = "1"
+            } else {
+                let g = gcd(top, d)
+                answer = "\(top / g)/\(d / g)"
+            }
+            return LessonCard(q: "\(a)/\(d) + \(b)/\(d)", a: answer)
+
+        case "primeOrComposite":
+            // From 10 up, so the answer is never obvious at a glance.
+            let n = r.between(10, p.max ?? 50)
+            var prime = true
+            var i = 2
+            while i * i <= n {
+                if n % i == 0 { prime = false; break }
+                i += 1
+            }
+            return LessonCard(q: "Is \(n) prime or composite?",
+                              a: prime ? "Prime" : "Composite")
+
         case "areaPerimeter":
             let w = r.between(2, p.max ?? 10)
             let h = r.between(2, p.max ?? 10)
@@ -226,6 +302,12 @@ enum LessonLibrary {
         default:
             return nil
         }
+    }
+
+    /// A minus sign, not a hyphen. The same character is used for
+    /// subtraction throughout, so a question and its answer look consistent.
+    private static func neg(_ n: Int) -> String {
+        n < 0 ? "\u{2212}\(abs(n))" : String(n)
     }
 
     static func gcd(_ x: Int, _ y: Int) -> Int {
