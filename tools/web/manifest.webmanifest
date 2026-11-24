@@ -1,7 +1,7 @@
 {
   "id": "/school-answers",
-  "name": "School Answers",
-  "short_name": "Schools",
+  "name": "Schoolo",
+  "short_name": "Schoolo",
   "description": "Is there school tomorrow? What time does it start? When is the break? Answers from your own school district's published calendar, on your phone, working offline.",
   "start_url": ".",
   "scope": ".",

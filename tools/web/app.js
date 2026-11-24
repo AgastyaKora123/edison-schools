@@ -1,5 +1,5 @@
 /*
- * app.js — UI for School Answers.
+ * app.js — UI for Schoolo.
  *
  * All the thinking lives in engine.js; this file only renders it and handles
  * the one network call (the district's live feed, for closings).
@@ -893,7 +893,12 @@
 
   function applySchool() {
     const names = schoolIds.map(schoolById).filter(Boolean).map((s) => s.shortName);
-    el('scopeline').textContent = names.length ? names.join(' · ') : districtName();
+    // The district leads, because the app's name no longer carries it and
+    // somebody glancing at this needs to know whose calendar they are reading.
+    const where = districtShort();
+    const scope = names.length ? names.join(' · ') : districtName();
+    el('scopeline').textContent =
+      (names.length && where && where !== 'the district') ? where + ' · ' + scope : scope;
 
     // Once the glance card is answering today's question, the "here is what
     // this app does" paragraph is just pushing the suggestions off screen.
@@ -1802,23 +1807,25 @@
       return !!(w && d && !w.hidden && !d.hidden);
     })();
     if (choosing) {
-      const t = el('apptitle');   if (t) t.textContent = 'School Answers';
+      const t = el('apptitle');   if (t) t.textContent = 'Schoolo';
       const m = el('home-mark');  if (m) m.textContent = 'S';
       const s = el('scopeline');  if (s) s.textContent = 'Choose your district';
       const dis = el('disclaimer'); if (dis) dis.textContent = '';
-      try { document.title = 'School Answers'; } catch (e) { /* ignore */ }
+      try { document.title = 'Schoolo'; } catch (e) { /* ignore */ }
       return;
     }
 
     const short = districtShort();
     const mark = el('home-mark');
-    if (mark) mark.textContent = (short && short !== 'the district') ? short.charAt(0).toUpperCase() : 'S';
+    if (mark) mark.textContent = 'S';
 
+    // The name stays put. It used to read "<District> School Answers", which
+    // made the app's name change depending on where you lived and left three
+    // different names between here, the iPhone app and the stores. The
+    // district has not been lost - it moved to the line underneath, which is
+    // where the schools already were.
     const title = el('apptitle');
-    if (title) {
-      title.textContent = (short && short !== 'the district')
-        ? short + ' School Answers' : 'School Answers';
-    }
+    if (title) title.textContent = 'Schoolo';
 
     const head = el('askhead');
     if (head) {
@@ -1826,7 +1833,9 @@
         ? 'Ask about ' + short + ' schools.' : 'Ask about your schools.';
     }
 
-    try { document.title = (title && title.textContent) || 'School Answers'; } catch (e) { /* ignore */ }
+    try {
+      document.title = (short && short !== 'the district') ? 'Schoolo · ' + short : 'Schoolo';
+    } catch (e) { /* ignore */ }
 
     const dis = el('disclaimer');
     if (!dis) return;
