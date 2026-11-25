@@ -43,6 +43,12 @@
   let liveAlerts = [];
   let alertStatus = { state: 'idle', at: null, note: '' };
 
+  // Who works at the saved schools. Read from the school's own staff
+  // directory the first time, kept in the phone afterwards, and handed to the
+  // engine the same way live closings are - the engine answers from the pack
+  // it is given and does not know or care that part of it arrived later.
+  let liveStaff = [];
+
   // What the last question settled on, kept per school so a follow-up means
   // the same thing for each child.
   let lastContext = {};
@@ -50,6 +56,7 @@
   const engine = () => {
     const p = Object.assign({}, PACK);
     p.alerts = E.AlertParser.merge((PACK.alerts || []).concat(liveAlerts));
+    p.staff = (PACK.staff || []).concat(liveStaff);
     return new E.AnswerEngine(p, RULES);
   };
 
@@ -768,6 +775,39 @@
     renderSettings();
   }
 
+  /**
+   * Loads the staff list for each saved school.
+   *
+   * Whatever is already in the phone is adopted at once and synchronously, so
+   * a question asked a second after opening the app is answered from the
+   * roster rather than told to wait. Only then does it go to the network, and
+   * only for a school whose copy is missing or more than a week old.
+   *
+   * Nothing awaits this and nothing depends on it: a staff question that
+   * arrives before the first load finishes says so plainly, and the one after
+   * it works. The calendar, the hours and the closings never touch this path.
+   */
+  async function loadStaff() {
+    if (!window.StaffDirectory) return;
+    const schools = schoolIds.map(schoolById).filter(Boolean);
+
+    liveStaff = StaffDirectory.cached(schools);
+    if (liveStaff.length) renderGlance();
+
+    const haveOrgIds = schools.some((s) => s.orgId);
+    let rows = [];
+    if (haveOrgIds) {
+      for (const s of schools) {
+        try { rows = rows.concat(await StaffDirectory.load(s)); } catch (e) { /* next school */ }
+      }
+    } else if (PACK.district && PACK.district.orgId) {
+      // A district built in the app knows its own number but not its
+      // schools'. Some districts keep one directory at district level.
+      try { rows = await StaffDirectory.loadDistrictWide(PACK.district.orgId); } catch (e) { /* none */ }
+    }
+    if (rows.length) liveStaff = rows;
+  }
+
   // ---------------------------------------------------------------- settings
 
   /**
@@ -844,7 +884,7 @@
   }
 
   function renderSettings() {
-    buildPicker(el('schoolpicker'), 'sch-', () => { applySchool(); checkAlerts(); });
+    buildPicker(el('schoolpicker'), 'sch-', () => { applySchool(); checkAlerts(); loadStaff(); });
     syncPickers();
 
     renderBranding();
@@ -1919,6 +1959,7 @@
     applySchool();
     renderSettings();
     checkAlerts();
+    loadStaff();
   }
 
   el('welcome-done').addEventListener('click', closeWelcome);
@@ -1959,6 +2000,7 @@
     applySchool();
     renderSettings();
     checkAlerts();
+    loadStaff();
 
     if (!schoolIds.length && store.get('welcomed', '') !== '1') {
       showWelcome();

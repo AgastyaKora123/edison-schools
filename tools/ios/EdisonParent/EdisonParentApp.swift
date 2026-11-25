@@ -46,6 +46,10 @@ struct EdisonParentApp: App {
                     // the app is never opened again, with no network and no
                     // background refresh.
                     await store.rescheduleDayBeforeReminders()
+                    // Who works at the saved school, so "who teaches science"
+                    // has an answer. Last, because nothing else waits on it
+                    // and a staff question asked before it lands says so.
+                    await store.refreshStaff()
                 }
         }
         .onChange(of: scenePhase) { _, phase in

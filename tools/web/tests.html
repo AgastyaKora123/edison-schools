@@ -101,6 +101,41 @@
            errors.length ? `slots: ${JSON.stringify(a.debug)}\nanswer: ${text}` : '');
   }
 
+  // ---------------------------------------------------- staff.jsonl
+  //
+  // Staff lists are not part of the pack - they are read from each school's
+  // own directory while the app runs - so these cases get the same stand-in
+  // roster the PowerShell harness injects, over a copy of the real pack.
+  if (window.FIXTURES.staff && window.FIXTURES.staffRoster) {
+    const staffPack = Object.assign({}, window.PACK);
+    staffPack.staff = window.FIXTURES.staffRoster;
+    const staffEngine = new E.AnswerEngine(staffPack, window.RULES);
+    for (const c of window.FIXTURES.staff) {
+      const today = c.today ? E.fromISO(c.today) : staffEngine.today();
+      let a, errors = [];
+      try {
+        a = staffEngine.answer(c.q, today, c.school || '');
+      } catch (err) {
+        record('staff: ' + (c.q || '(empty)'), ['THREW: ' + err.message + '\n' + (err.stack || '')], '');
+        continue;
+      }
+      const text = a.answer || '';
+      const hay = text.toLowerCase();
+      if (!text.trim()) errors.push('empty answer');
+      if (c.resolver && a.debug.resolver !== c.resolver) {
+        errors.push(`resolver: want '${c.resolver}', got '${a.debug.resolver}'`);
+      }
+      for (const n of (c.contains || [])) {
+        if (n && hay.indexOf(n.toLowerCase()) < 0) errors.push(`missing: '${n}'`);
+      }
+      for (const n of (c.notContains || [])) {
+        if (n && hay.indexOf(n.toLowerCase()) >= 0) errors.push(`should not contain: '${n}'`);
+      }
+      record('staff: ' + (c.q || '(empty query)'), errors,
+             errors.length ? `slots: ${JSON.stringify(a.debug)}\nanswer: ${text}` : '');
+    }
+  }
+
   // ---------------------------------------------------- alerts.jsonl
   const parser = new E.AlertParser(window.RULES);
   for (const f of window.FIXTURES.alerts) {

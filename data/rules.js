@@ -208,6 +208,31 @@ window.RULES = {
       }
     },
     {
+      "id": "staff_lookup",
+      "resolver": "staff_lookup",
+      "priority": 86,
+      "_note": "Who works at the school, from the directory feed the school's own Staff page is built from. Names, job titles and departments only - see web/staff.js for why the email field is read and thrown away.",
+      "_whyTheGuardMatters": "This list cannot recognise a name, so 'what is maria ramsey's email' matches nothing here and would fall to fact_search. The engine's own routing guard looks the question up against the loaded roster instead, which catches any phrasing at all. That guard is deliberately stricter than this resolver: it needs a first AND last name, because a surname on its own is a word like any other and Edison employs a Day, a Marsh and a Winter. 'Is there school on a snow day' must not become a question about Mr Day.",
+      "_whyThePossessive": "'What is Maria Ramsey's email' is a question about a person even when that person turns out not to work in the district - which is the answer the parent needs, and far better than the counselling page the fact search was handing back. The institutions are excluded by name because 'what is the school's email' is a question for contact_info, which has the office number.",
+      "_whatIsNotHere": "'Who do I contact about X' was a pattern here and had to come out: it took 'who do I contact about bullying' off the anti-bullying page and onto the staff list, which is a worse answer and a contract failure. That shape of question is about a topic far more often than about a person, and the engine's roster guard already catches the cases where a person is actually named.",
+      "requireAny": ["who", "whos", "teach", "teaches", "teacher", "teachers", "staff", "principal", "nurse", "counselor", "counsellor", "secretary", "librarian", "coach", "department", "works", "faculty", "email", "e-mail"],
+      "patterns": [
+        "\\b(?!(?:school|schools|district|office|pto|pta|board|library|cafeteria|team|club|nurse|principal)'?s\\b)[a-z]{3,}'s (e-?mail|phone|extension)\\b",
+        "^who (is|are|teaches|teach)\\b",
+        "\\bwho (teaches|teach|works|coaches|runs)\\b",
+        "\\bwhat does .{1,30} teach\\b",
+        "\\bwho(s| is) (the|my|our) .{0,24}(teacher|nurse|principal|counselor|counsellor|secretary|coach|librarian|aide|custodian|psychologist|therapist|director|supervisor|specialist)\\b",
+        "\\b(teacher|teachers|nurse|principal|counselor|counsellor|secretary|librarian|faculty|staff) (for|at|of|in|list|directory)\\b",
+        "\\b(list|all) (the )?(teachers|staff|faculty)\\b"
+      ],
+      "keywords": {
+        "teacher": 4, "teachers": 4, "teaches": 4, "teach": 3, "staff": 3,
+        "principal": 4, "nurse": 4, "counselor": 4, "counsellor": 4,
+        "librarian": 4, "secretary": 2, "coach": 3, "faculty": 4,
+        "department": 2, "works": 2, "who": 1
+      }
+    },
+    {
       "id": "list_occurrences",
       "resolver": "list_occurrences",
       "priority": 95,

@@ -1200,6 +1200,373 @@
               'contact_info', 'district', [d.url], 0.85);
   };
 
+  // ---------------------------------------------------------------- staff
+
+  /**
+   * Words in front of a name that are not part of it. A parent asks about
+   * "Mrs Abrams"; the roster says "Brooke Abrams".
+   */
+  const HONORIFICS = new Set([
+    'mr', 'mrs', 'ms', 'miss', 'mx', 'dr', 'doctor', 'prof', 'professor',
+    'sir', 'madam', 'maam', 'coach', 'nurse', 'principal', 'teacher'
+  ]);
+
+  /**
+   * Enough of a word to match a job title with.
+   *
+   * "Who teaches science" has to reach a title that reads "Teacher - Science",
+   * and "teaches" shares no whole word with it. Cutting the question's word
+   * back to its stem - teaches, teaching, teach - and then asking whether the
+   * title contains that stem gets there without a list of every verb form.
+   *
+   * Deliberately crude and deliberately identical in all three engines: the
+   * PowerShell and Swift engines answer the same contract file, so a cleverer
+   * rule here is a rule that has to be cleverer in exactly the same way twice
+   * more.
+   */
+  /**
+   * Role words that say "a person who works here" and nothing more.
+   *
+   * These cannot carry a match on their own. "Who teaches science" at a school
+   * with no science teacher was answering "Alan Reyes is Teacher - Math",
+   * because "teach" is in every teacher's title and "science" was simply
+   * ignored once something had matched. Where the question names a subject or
+   * a job, that is the part that has to be found; these only help rank and
+   * only answer by themselves when they are all the question gave
+   * ("who are the teachers").
+   */
+  const STAFF_GENERIC = new Set([
+    'teach', 'teacher', 'staff', 'work', 'faculty', 'employee', 'member',
+    'people', 'person', 'someone', 'anybody', 'anyone'
+  ]);
+
+  /**
+   * How far apart two words are: the number of single-letter insertions,
+   * deletions or substitutions that turn one into the other.
+   *
+   * Here because of one letter. A parent asked after "Maria Ramsey"; the
+   * roster says "Maria Ramsay". Searching 2,105 names found nothing, twice,
+   * and the honest answer - "no one by that name works here" - was wrong
+   * about a teacher two corridors away. Exact matching cannot tell a name
+   * that is absent from a name that is misremembered, and those need
+   * different answers.
+   *
+   * Gives up as soon as the lengths alone put the words further apart than
+   * `max`, which is most of the 2,105 comparisons.
+   */
+  function editDistance(a, b, max) {
+    const al = a.length, bl = b.length;
+    if (Math.abs(al - bl) > max) return max + 1;
+    let prev = new Array(bl + 1);
+    let cur = new Array(bl + 1);
+    for (let j = 0; j <= bl; j++) prev[j] = j;
+    for (let i = 1; i <= al; i++) {
+      cur[0] = i;
+      for (let j = 1; j <= bl; j++) {
+        const cost = a.charAt(i - 1) === b.charAt(j - 1) ? 0 : 1;
+        cur[j] = Math.min(cur[j - 1] + 1, prev[j] + 1, prev[j - 1] + cost);
+      }
+      const swap = prev; prev = cur; cur = swap;
+    }
+    return prev[bl];
+  }
+
+  /**
+   * How wrong a word is allowed to be before it stops being the same name.
+   *
+   * One letter in a short name, two in a long one. Tight on purpose: at two
+   * letters out of five, "Marsh" would reach "Marsha", "Marsa" and "Harsh",
+   * and a suggestion that is wrong is worse than no suggestion - the parent
+   * goes and emails the wrong teacher.
+   */
+  function staffNearLimit(len) { return len >= 8 ? 2 : 1; }
+
+  function staffStem(t) {
+    const s = String(t || '');
+    if (s.length > 4 && /ies$/.test(s)) return s.slice(0, -3) + 'y';
+    if (s.length > 5 && /ing$/.test(s)) return s.slice(0, -3);
+    if (s.length > 4 && /es$/.test(s)) return s.slice(0, -2);
+    if (s.length > 3 && /s$/.test(s) && !/ss$/.test(s)) return s.slice(0, -1);
+    return s;
+  }
+
+  /** The people the question could be about: one school's, or everybody's. */
+  AnswerEngine.prototype.staffFor = function (school) {
+    const all = this.pack.staff || [];
+    if (!school) return all;
+    const mine = all.filter((p) => p.schoolId === school.id);
+    // A roster loaded for a district nobody has crawled carries no school id,
+    // because a districtwide directory does not say which school anyone is
+    // at. Better to search all of it than to answer "nobody works there".
+    return mine.length ? mine : all.filter((p) => !p.schoolId);
+  };
+
+  /**
+   * Who in this list the question is about.
+   *
+   * Two quite different questions arrive here. "Who is Mrs Abrams" names a
+   * person; "who teaches science" names a job. Both are answered from the
+   * same rows, so both are scored and the stronger one wins, rather than the
+   * engine trying to decide which kind of question it is first and getting it
+   * wrong on "who is the science teacher".
+   */
+  AnswerEngine.prototype.staffMatches = function (norm, school) {
+    const people = this.staffFor(school);
+    if (!people.length) return { people: [], byName: false };
+
+    const toks = tokens(norm).filter((t) => t.length > 1);
+    // Honorifics are dropped from the name side only. They are also job
+    // titles: "nurse", "principal" and "teacher" are how a parent asks about
+    // somebody they do not know the name of, and stripping them from both
+    // sides left "who is the school nurse" matching nothing at all.
+    const nameToks = new Set(toks.filter((t) => !HONORIFICS.has(t)));
+    const roleToks = toks
+      .filter((t) => t.length > 2 && !this.stop.has(t))
+      .map(staffStem)
+      .filter((t) => t.length > 2);
+    const specificToks = roleToks.filter((t) => !STAFF_GENERIC.has(t));
+
+    const scored = [];
+    for (const p of people) {
+      const first = String(p.first || '').toLowerCase();
+      const last = String(p.last || '').toLowerCase();
+      const full = String(p.name || '').toLowerCase();
+      let name = 0;
+
+      if (full && containsPhrase(norm, full)) name = 100;
+      else if (last.length > 2 && nameToks.has(last)) {
+        name = (first.length > 2 && nameToks.has(first)) ? 90 : 60;
+      } else if (first.length > 2 && nameToks.has(first)) name = 25;
+
+      let role = 0;
+      let specificHits = 0;
+      const title = String(p.title || '').toLowerCase();
+      const dept = String(p.department || '').toLowerCase();
+      for (const t of roleToks) {
+        let add = 0;
+        if (title.indexOf(t) >= 0) add = 10;
+        else if (dept.indexOf(t) >= 0) add = 8;
+        if (!add) continue;
+        role += add;
+        if (!STAFF_GENERIC.has(t)) specificHits++;
+      }
+      // The question named a subject or a job: that is the part that has to
+      // have been found.
+      if (specificToks.length && !specificHits) role = 0;
+
+      // The roster position is kept as a tiebreaker. Two people can score
+      // identically - "who is mr tate" finds both Tates with nothing to
+      // separate them - and JavaScript's sort is stable where Swift's is
+      // not, so without an explicit tiebreaker the three engines would
+      // disagree about the order and the contract file would be unpassable
+      // for one of them.
+      if (name || role) scored.push({ p: p, name: name, role: role, idx: scored.length });
+    }
+    if (!scored.length) return { people: [], byName: false };
+
+    const bestName = Math.max.apply(null, scored.map((s) => s.name));
+    // A name is only a name if it is a surname or better. One shared first
+    // name ("who is the art teacher, is it Dawn?") is not enough to answer
+    // about a person.
+    if (bestName >= 60) {
+      const hits = scored.filter((s) => s.name === bestName)
+        .sort((a, b) => (b.role - a.role) || (a.idx - b.idx));
+      return { people: hits.map((s) => s.p), byName: true };
+    }
+
+    const bestRole = Math.max.apply(null, scored.map((s) => s.role));
+    if (!bestRole) return { people: [], byName: false };
+    // Alphabetical, then roster position. The three engines each use their
+    // own string comparison here, which agree on plain letters and could
+    // differ on accented ones - two people at one school, tied on score, with
+    // names separated only by an accent would list in a different order on an
+    // iPhone than in a browser. Order only, never which people; not worth a
+    // comparator written out three times to fix.
+    const hits = scored.filter((s) => s.role === bestRole)
+      .sort((a, b) => String(a.p.name).localeCompare(String(b.p.name)) || (a.idx - b.idx));
+    return { people: hits.map((s) => s.p), byName: false };
+  };
+
+  /**
+   * Does the question name a particular person on the roster, first name and
+   * surname both?
+   *
+   * The routing guard's test, and stricter than the resolver's on purpose. A
+   * surname by itself is an ordinary word: Edison's staff include a Day, a
+   * Marsh, a Winter and a Church, so "is there school on a snow day" or
+   * "what time does the winter concert start" would be dragged off to the
+   * staff list by a surname match alone. Requiring both halves of a name
+   * costs nothing - a parent asking after somebody by surname only usually
+   * says "Mrs" or "the teacher" too, and those route here by wording - and it
+   * removes the whole class of accident.
+   */
+  AnswerEngine.prototype.staffNamesSomeone = function (norm, school) {
+    const people = this.staffFor(school);
+    if (!people.length) return false;
+    const toks = new Set(tokens(norm).filter((t) => t.length > 1 && !HONORIFICS.has(t)));
+    for (const p of people) {
+      const full = String(p.name || '').toLowerCase();
+      if (full && containsPhrase(norm, full)) return true;
+      const first = String(p.first || '').toLowerCase();
+      const last = String(p.last || '').toLowerCase();
+      if (first.length > 2 && last.length > 2 && toks.has(first) && toks.has(last)) return true;
+    }
+    return false;
+  };
+
+  /**
+   * People whose name is nearly, but not quite, one of the words asked about.
+   *
+   * Only ever consulted once the ordinary match has found nobody, so a
+   * suggestion cannot displace a real answer - at worst it turns a flat "no"
+   * into a question. At most three, best first, because a list of six
+   * possible spellings is no more use than none.
+   */
+  AnswerEngine.prototype.staffNearMisses = function (norm, school) {
+    const people = this.staffFor(school);
+    if (!people.length) return [];
+    const toks = tokens(norm).filter((t) =>
+      t.length >= 4 && !HONORIFICS.has(t) && !this.stop.has(t) && !STAFF_GENERIC.has(t));
+    if (!toks.length) return [];
+
+    const out = [];
+    for (let i = 0; i < people.length; i++) {
+      const p = people[i];
+      // Surnames only. First names are interchangeable in a way surnames are
+      // not: "Maria" is one letter from "Marta", so asking after Maria Ramsey
+      // suggested Marta Villa, a science teacher with nothing to do with
+      // anything. A surname one letter out is a misspelling; a first name one
+      // letter out is usually a different person.
+      const last = String(p.last || '').toLowerCase();
+      if (last.length < 4) continue;
+      let best = 99;
+      for (const t of toks) {
+        const lim = staffNearLimit(t.length);
+        const d = editDistance(t, last, lim);
+        if (d <= lim && d < best) best = d;
+      }
+      if (best <= 2) out.push({ p: p, d: best, idx: i });
+    }
+    out.sort((a, b) => (a.d - b.d) || (a.idx - b.idx));
+    return out.slice(0, 3).map((x) => x.p);
+  };
+
+  /** How a person reads on one line: "Brooke Abrams - Teacher - English". */
+  function staffLine(p) {
+    const bits = [String(p.name || '')];
+    if (p.title) bits.push(String(p.title));
+    else if (p.department) bits.push(String(p.department));
+    return bits.join(' - ');
+  }
+
+  /**
+   * Where to go for a staff member's email address, and why the app has not
+   * got it.
+   *
+   * Edison publishes an address for 156 of its 2,105 staff: two elementary
+   * schools fill the field in, and its high school has set all 275 of its
+   * entries to "hidden". Carrying the few that exist would mean the app
+   * answers for some teachers and not others with no way for a parent to tell
+   * which, and it would mean shipping a list of educators' addresses that the
+   * district could no longer change. The school's own page is current and is
+   * theirs; that is where this sends people.
+   */
+  AnswerEngine.prototype.staffContactTail = function (school) {
+    const lines = [`I don't carry staff email addresses - most ${this.districtShort} schools do not publish them, and the ones that do keep them on their own page, where they stay current.`];
+    const rec = school ? (this.pack.contacts || []).find((c) => c.schoolId === school.id) : null;
+    if (rec && rec.phone) {
+      lines.push(`The ${school.name} office is ${rec.phone} and will pass on a message.`);
+    } else if ((this.pack.district || {}).phone) {
+      lines.push(`${this.districtShort}'s main line is ${this.pack.district.phone}.`);
+    }
+    if (school && school.url) lines.push(`Staff list: ${school.url}`);
+    return lines.join('\n');
+  };
+
+  AnswerEngine.prototype.rStaffLookup = function (ctx) {
+    const school = ctx.school;
+    const people = this.staffFor(school);
+    const where = school ? school.name : this.districtName;
+    const asksContact = /\b(e-?mail|email|phone|number|contact|reach|call)\b/.test(ctx.norm);
+
+    // Nothing loaded. Said plainly, because it fixes itself: the roster is
+    // fetched for the saved school and then answers offline.
+    if (!people.length) {
+      const t = school
+        ? `I haven't got ${where}'s staff list yet. It comes from the school's own directory and needs a connection the first time; after that I can answer from it with no signal.`
+        : "Tell me which school and I'll look up who works there.";
+      return mk(t, 'staff_lookup', 'no_roster', school ? [school.url] : [], 0.4,
+                school ? school.id : '');
+    }
+
+    const hit = this.staffMatches(ctx.norm, school);
+
+    if (!hit.people.length) {
+      const near = this.staffNearMisses(ctx.norm, school);
+      const head = `No one matching that is in ${where}'s staff list, and I have all ${people.length} people on it.`;
+      const lines = [head];
+      if (near.length === 1) {
+        lines.push('');
+        lines.push(`Did you mean ${staffLine(near[0])}?`);
+      } else if (near.length > 1) {
+        lines.push('');
+        lines.push('Did you mean one of these?');
+        for (const q of near) lines.push('- ' + staffLine(q));
+      } else {
+        // Nothing close either. Then the two things that are actually likely.
+        lines[0] = head + ' The name may be spelt differently, or they may be at another school.';
+      }
+      if (asksContact) { lines.push(''); lines.push(this.staffContactTail(school)); }
+      return mk(lines.join('\n'),
+                'staff_lookup', near.length ? 'did_you_mean' : 'not_found',
+                school ? [school.url] : [], near.length ? 0.6 : 0.55,
+                school ? school.id : '');
+    }
+
+    if (hit.byName) {
+      const p = hit.people[0];
+      const lines = [];
+      const role = p.title || p.department;
+      lines.push(role ? `${p.name} is ${role} at ${where}.` : `${p.name} is on ${where}'s staff list.`);
+      if (p.title && p.department && p.title.toLowerCase().indexOf(p.department.toLowerCase()) < 0) {
+        lines.push(`Department: ${p.department}`);
+      }
+      // Two people can share a surname: both get named rather than the app
+      // picking one and sounding certain.
+      if (hit.people.length > 1) {
+        lines.push('');
+        lines.push(`${hit.people.length} people there match that name:`);
+        for (const q of hit.people.slice(0, 6)) lines.push('- ' + staffLine(q));
+      }
+      if (asksContact) { lines.push(''); lines.push(this.staffContactTail(school)); }
+      return mk(lines.join('\n'), 'staff_lookup', 'person',
+                school ? [school.url] : [], 0.85, school ? school.id : '');
+    }
+
+    // "Who is the school nurse" has one answer, and a list of one reads like
+    // the app could not quite manage a sentence.
+    if (hit.people.length === 1) {
+      const p = hit.people[0];
+      const role = p.title || p.department;
+      const lines1 = [role ? `${p.name} is ${role} at ${where}.`
+                           : `${p.name} is on ${where}'s staff list.`];
+      if (asksContact) { lines1.push(''); lines1.push(this.staffContactTail(school)); }
+      return mk(lines1.join('\n'), 'staff_lookup', 'role',
+                school ? [school.url] : [], 0.85, school ? school.id : '');
+    }
+
+    const shown = hit.people.slice(0, 8);
+    const lines = [];
+    lines.push(`${hit.people.length} people at ${where} match:`);
+    for (const p of shown) lines.push('- ' + staffLine(p));
+    if (hit.people.length > shown.length) {
+      lines.push(`...and ${hit.people.length - shown.length} more.`);
+    }
+    if (asksContact) { lines.push(''); lines.push(this.staffContactTail(school)); }
+    return mk(lines.join('\n'), 'staff_lookup', 'role',
+              school ? [school.url] : [], 0.8, school ? school.id : '');
+  };
+
   AnswerEngine.prototype.rFactSearch = function (ctx) {
     const all = tokens(ctx.norm).filter((t) => t.length > 2);
     let terms = all.filter((t) => !this.stop.has(t));
@@ -1386,12 +1753,24 @@
       }
     }
 
+    // A question that names a member of staff is about that person, whatever
+    // else it is worded like. "What is Maria Ramsey's email" reaches here as
+    // fact_search, because no word list can hold every name in a district;
+    // the roster can, so it is asked. Only the two buckets that mean "no
+    // better idea" are overridden - a question that already resolved to the
+    // calendar or the bell times keeps its answer.
+    if ((resolver === 'fact_search' || resolver === 'contact_info') &&
+        this.staffNamesSomeone(norm, ctx.school)) {
+      resolver = 'staff_lookup';
+    }
+
     const fn = {
       school_status: this.rSchoolStatus, day_schedule: this.rDaySchedule,
       bell_times: this.rBellTimes, next_occurrence: this.rNextOccurrence,
       break_dates: this.rBreakDates, calendar_list: this.rCalendarList,
       list_occurrences: this.rListOccurrences,
-      absence_report: this.rAbsence, contact_info: this.rContact
+      absence_report: this.rAbsence, contact_info: this.rContact,
+      staff_lookup: this.rStaffLookup
     }[resolver] || this.rFactSearch;
 
     const out = fn.call(this, ctx);

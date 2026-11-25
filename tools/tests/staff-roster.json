@@ -1,0 +1,14 @@
+[
+  { "_": "A stand-in staff list, injected into a copy of the real pack so the staff answers can be tested without pinning the tests to real people. Shapes, not individuals: an ordinary teacher, a one-of-a-kind role, two people in the same subject, two who share a surname, and one whose surname is also a calendar word. Invented names - the live rosters are read from each school's own directory at runtime and never shipped." },
+
+  { "schoolId": "wwms", "name": "Helen Marsh", "first": "Helen", "last": "Marsh", "title": "Teacher - English", "department": "Language Arts" },
+  { "schoolId": "wwms", "name": "Priya Raman", "first": "Priya", "last": "Raman", "title": "School Nurse", "department": "Health Services" },
+  { "schoolId": "wwms", "name": "Daniel Okonkwo", "first": "Daniel", "last": "Okonkwo", "title": "Principal", "department": "Administration" },
+  { "schoolId": "wwms", "name": "Alan Reyes", "first": "Alan", "last": "Reyes", "title": "Teacher - Science", "department": "Science" },
+  { "schoolId": "wwms", "name": "Marta Villa", "first": "Marta", "last": "Villa", "title": "Teacher - Science", "department": "Science" },
+  { "schoolId": "wwms", "name": "Omar Tate", "first": "Omar", "last": "Tate", "title": "Teacher - Band", "department": "Music" },
+  { "schoolId": "wwms", "name": "Lena Tate", "first": "Lena", "last": "Tate", "title": "School Secretary I", "department": "Main Office" },
+  { "schoolId": "wwms", "name": "Ruth Winter", "first": "Ruth", "last": "Winter", "title": "Paraprofessional", "department": "Special Education" },
+
+  { "schoolId": "tjms", "name": "Alan Reyes", "first": "Alan", "last": "Reyes", "title": "Teacher - Math", "department": "Mathematics" }
+]

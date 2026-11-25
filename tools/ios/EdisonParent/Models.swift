@@ -31,6 +31,12 @@ struct KnowledgePack: Codable {
     var schoolFeedUrls: [String: String]?
     /// Closings known at build time; the app merges live ones over these.
     var alerts: [ClosingAlert]?
+    /// Who works at the saved schools. Never in the file on disk: it is read
+    /// from each school's own published directory while the app is running
+    /// and merged in before a question is answered, the same way live
+    /// closings are. Two thousand names would be four hundred kilobytes of
+    /// app going stale the first time somebody changes job.
+    var staff: [StaffMember]?
 
     struct District: Codable {
         var name: String
@@ -257,6 +263,23 @@ extension ISO8601DateFormatter {
         f.formatOptions = [.withInternetDateTime, .withFractionalSeconds]
         return f
     }()
+}
+
+/// One person on a school's published staff list.
+///
+/// Names, job titles and departments only. The directory feed these come from
+/// also carries an email field; it is read and discarded on the way in, and
+/// this type has nowhere to put it on purpose. Most Edison schools leave that
+/// field blank and its high school has explicitly hidden every one of its
+/// entries, so a parent who needs to email a teacher is sent to the school's
+/// own page - current, and the district's to change.
+struct StaffMember: Codable {
+    var schoolId: String
+    var name: String
+    var first: String
+    var last: String
+    var title: String
+    var department: String
 }
 
 struct Contact: Codable {

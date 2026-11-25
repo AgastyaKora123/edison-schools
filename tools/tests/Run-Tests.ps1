@@ -19,7 +19,8 @@ param(
     [string] $Rules,
     [string] $Questions,
     [switch] $ShowAll,
-    [string] $Filter
+    [string] $Filter,
+    [string] $StaffFixture
 )
 
 $ErrorActionPreference = 'Stop'
@@ -42,6 +43,25 @@ $rulesObj = Import-Rules -Path $Rules
 Add-Type -AssemblyName System.Web.Extensions
 $ser = New-Object System.Web.Script.Serialization.JavaScriptSerializer
 $ser.MaxJsonLength = [int]::MaxValue
+
+# Staff lists are not part of the pack: they are read from each school's own
+# directory while the app is running, and 2,105 Edison staff would be four
+# hundred kilobytes of names going stale in a two-megabyte app. So the staff
+# cases get a stand-in roster injected into a copy of the real pack, the same
+# way the alert tests inject a closing. Rows with only a "_" key are notes.
+if ($StaffFixture) {
+    if (-not (Test-Path $StaffFixture)) { throw "Staff fixture not found: $StaffFixture" }
+    # Test-Path follows Set-Location; [IO.File] does not - it uses the
+    # process's own directory, which never moved. A relative path passed on
+    # the command line therefore passes the check and then fails the read,
+    # looking for the file under whichever folder PowerShell started in.
+    $StaffFixture = (Resolve-Path -LiteralPath $StaffFixture).Path
+    $roster = @($ser.DeserializeObject([IO.File]::ReadAllText($StaffFixture)) |
+                Where-Object { $_.ContainsKey('name') })
+    if (-not $roster.Count) { throw "Staff fixture has no people: $StaffFixture" }
+    $packObj['staff'] = $roster
+    Write-Host ("      staff fixture: {0} people" -f $roster.Count) -ForegroundColor DarkGray
+}
 
 $pass = 0; $fail = 0; $skip = 0
 $failures = New-Object System.Collections.ArrayList

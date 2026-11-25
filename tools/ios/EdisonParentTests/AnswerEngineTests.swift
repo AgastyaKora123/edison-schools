@@ -48,8 +48,12 @@ final class AnswerEngineTests: XCTestCase {
         guard let url = b.url(forResource: "questions", withExtension: "jsonl") else {
             throw XCTSkip("questions.jsonl is not in the test bundle's resources.")
         }
-        let text = try String(contentsOf: url, encoding: .utf8)
+        return try parseCases(String(contentsOf: url, encoding: .utf8))
+    }
 
+    /// One JSONL contract file -> cases. Shared by the question contract and
+    /// the staff contract, which read the same row shape out of two files.
+    private func parseCases(_ text: String) throws -> [Case] {
         let df = DateFormatter()
         df.calendar = Calendar(identifier: .gregorian)
         df.locale = Locale(identifier: "en_US_POSIX")
@@ -121,6 +125,81 @@ final class AnswerEngineTests: XCTestCase {
 
         if !failures.isEmpty {
             XCTFail("\(failures.count) of \(cases.count) contract cases failed:\n\n"
+                    + failures.joined(separator: "\n\n"))
+        }
+    }
+
+    // MARK: - The staff contract
+
+    /// Replays tests/staff.jsonl against tests/staff-roster.json.
+    ///
+    /// Separate from the question contract because a school's staff list is
+    /// read from the school's own directory while the app runs and is
+    /// deliberately not shipped in the pack - so these cases need the
+    /// stand-in roster injected, exactly as the PowerShell and browser
+    /// harnesses inject it.
+    func testStaffContract() throws {
+        let b = Self.bundle()
+        guard let packURL = b.url(forResource: "knowledge-pack", withExtension: "json") else {
+            throw XCTSkip("knowledge-pack.json is not in the test bundle's resources.")
+        }
+        guard let rulesURL = b.url(forResource: "intents", withExtension: "json") else {
+            throw XCTSkip("intents.json is not in the test bundle's resources.")
+        }
+        guard let rosterURL = b.url(forResource: "staff-roster", withExtension: "json") else {
+            throw XCTSkip("staff-roster.json is not in the test bundle's resources.")
+        }
+        guard let casesURL = b.url(forResource: "staff", withExtension: "jsonl") else {
+            throw XCTSkip("staff.jsonl is not in the test bundle's resources.")
+        }
+
+        var pack = try JSONDecoder().decode(KnowledgePack.self, from: Data(contentsOf: packURL))
+        let rules = try JSONDecoder().decode(Rules.self, from: Data(contentsOf: rulesURL))
+
+        // The roster file carries a leading note object with only a "_" key,
+        // so it is read loosely and the people picked out, the same way the
+        // other two harnesses read it.
+        let rosterRaw = try JSONSerialization.jsonObject(with: Data(contentsOf: rosterURL))
+        let rows = (rosterRaw as? [[String: Any]]) ?? []
+        pack.staff = rows.compactMap { r -> StaffMember? in
+            guard let name = r["name"] as? String, !name.isEmpty else { return nil }
+            return StaffMember(schoolId: r["schoolId"] as? String ?? "",
+                               name: name,
+                               first: r["first"] as? String ?? "",
+                               last: r["last"] as? String ?? "",
+                               title: r["title"] as? String ?? "",
+                               department: r["department"] as? String ?? "")
+        }
+        XCTAssertGreaterThan(pack.staff?.count ?? 0, 5, "The staff fixture looks truncated.")
+
+        let engine = AnswerEngine(pack: pack, rules: rules)
+        let cases = try parseCases(String(contentsOf: casesURL, encoding: .utf8))
+        XCTAssertGreaterThan(cases.count, 10, "The staff contract file looks truncated.")
+
+        var failures: [String] = []
+        for c in cases {
+            let a = engine.answer(c.q, today: c.today ?? Date(), defaultSchoolId: c.school)
+            var errs: [String] = []
+            if a.text.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty { errs.append("empty answer") }
+            if let want = c.resolver, a.debug.resolver != want {
+                errs.append("resolver: want '\(want)', got '\(a.debug.resolver)'")
+            }
+            for needle in c.contains where a.text.range(of: needle, options: .caseInsensitive) == nil {
+                errs.append("missing: '\(needle)'")
+            }
+            for needle in c.notContains where a.text.range(of: needle, options: .caseInsensitive) != nil {
+                errs.append("should not contain: '\(needle)'")
+            }
+            if !errs.isEmpty {
+                failures.append("""
+                line \(c.line): \(c.q)
+                  \(errs.joined(separator: "\n  "))
+                  answer: \(a.text.replacingOccurrences(of: "\n", with: " | "))
+                """)
+            }
+        }
+        if !failures.isEmpty {
+            XCTFail("\(failures.count) of \(cases.count) staff cases failed:\n\n"
                     + failures.joined(separator: "\n\n"))
         }
     }

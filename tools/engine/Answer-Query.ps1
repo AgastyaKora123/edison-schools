@@ -1667,15 +1667,479 @@ function Invoke-Resolver-ContactInfo {
     return Invoke-Resolver-FactSearch -Pack $Pack -Rules $Rules -Ctx $Ctx
 }
 
+# Question scaffolding, dropped so retrieval and the staff matcher both see
+# only topic words. One list, because two copies of it drift apart silently:
+# nothing in the contract file compares them.
+$script:QueryStop = @('what','when','where','who','how','why','is','are','do','does','did','the','a','an',
+          'my','our','i','we','you','to','for','of','in','on','at','it','its','be','can','could',
+          'should','would','will','there','their','and','or','if','about','from','me','kid','kids',
+          'child','children','son','daughter','school','schools','district','please','tell')
+
+# ================================================================ staff
+
+<#
+  Who works at a school.
+
+  Mirrors the staff section of web/engine.js line for line, because the two
+  answer the same contract file. The matching, the stemming, the honorific
+  list and every sentence of output have to be identical; where they differ,
+  tests/questions.jsonl is what notices.
+
+  The pack carries names, job titles and departments only. The directory feed
+  these come from also has an email field, and it is read and thrown away on
+  the way in - see web/staff.js for the reasoning, which is not the engine's
+  to second-guess.
+#>
+
+# Words in front of a name that are not part of it. A parent asks about
+# "Mrs Abrams"; the roster says "Brooke Abrams".
+$script:StaffHonorifics = @('mr', 'mrs', 'ms', 'miss', 'mx', 'dr', 'doctor', 'prof',
+                            'professor', 'sir', 'madam', 'maam', 'coach', 'nurse',
+                            'principal', 'teacher')
+
+# Role words that say "a person who works here" and nothing more.
+#
+# These cannot carry a match on their own. "Who teaches science" at a school
+# with no science teacher was answering "Alan Reyes is Teacher - Math",
+# because "teach" is in every teacher's title and "science" was simply ignored
+# once something had matched. Where the question names a subject or a job,
+# that is the part that has to be found; these only help rank, and only answer
+# by themselves when they are all the question gave ("who are the teachers").
+$script:StaffGeneric = @('teach', 'teacher', 'staff', 'work', 'faculty', 'employee',
+                         'member', 'people', 'person', 'someone', 'anybody', 'anyone')
+
+function Get-EditDistance {
+    <#
+      How far apart two words are: the number of single-letter insertions,
+      deletions or substitutions that turn one into the other.
+
+      Here because of one letter. A parent asked after "Maria Ramsey"; the
+      roster says "Maria Ramsay". Searching 2,105 names found nothing, twice,
+      and the honest answer - "no one by that name works here" - was wrong
+      about a teacher two corridors away. Exact matching cannot tell a name
+      that is absent from a name that is misremembered, and those need
+      different answers.
+
+      Gives up as soon as the lengths alone put the words further apart than
+      -Max, which is most of the 2,105 comparisons.
+    #>
+    param([string] $A, [string] $B, [int] $Max)
+
+    $al = $A.Length
+    $bl = $B.Length
+    if ([Math]::Abs($al - $bl) -gt $Max) { return ($Max + 1) }
+
+    $prev = New-Object 'int[]' ($bl + 1)
+    $cur  = New-Object 'int[]' ($bl + 1)
+    for ($j = 0; $j -le $bl; $j++) { $prev[$j] = $j }
+    for ($i = 1; $i -le $al; $i++) {
+        $cur[0] = $i
+        for ($j = 1; $j -le $bl; $j++) {
+            $cost = if ($A[$i - 1] -ceq $B[$j - 1]) { 0 } else { 1 }
+            $a1 = $cur[$j - 1] + 1
+            $a2 = $prev[$j] + 1
+            $a3 = $prev[$j - 1] + $cost
+            $m = $a1
+            if ($a2 -lt $m) { $m = $a2 }
+            if ($a3 -lt $m) { $m = $a3 }
+            $cur[$j] = $m
+        }
+        $swap = $prev; $prev = $cur; $cur = $swap
+    }
+    return $prev[$bl]
+}
+
+function Get-StaffNearLimit {
+    <#
+      How wrong a word is allowed to be before it stops being the same name.
+
+      One letter in a short name, two in a long one. Tight on purpose: at two
+      letters out of five, "Marsh" would reach "Marsha", "Marsa" and "Harsh",
+      and a suggestion that is wrong is worse than no suggestion - the parent
+      goes and emails the wrong teacher.
+    #>
+    param([int] $Len)
+    if ($Len -ge 8) { return 2 }
+    return 1
+}
+
+function Get-StaffNearMisses {
+    <#
+      People whose name is nearly, but not quite, one of the words asked
+      about.
+
+      Only ever consulted once the ordinary match has found nobody, so a
+      suggestion cannot displace a real answer - at worst it turns a flat "no"
+      into a question. At most three, best first, because a list of six
+      possible spellings is no more use than none.
+    #>
+    param($Pack, $Norm, $School)
+
+    $people = @(Get-StaffFor -Pack $Pack -School $School)
+    if (-not $people.Count) { return @() }
+
+    $stop = @($script:QueryStop) + (Get-DistrictInfo $Pack).NameWords
+    $toks = @(Get-Tokens $Norm | Where-Object {
+        $_.Length -ge 4 -and
+        $script:StaffHonorifics -notcontains $_ -and
+        $stop -notcontains $_ -and
+        $script:StaffGeneric -notcontains $_
+    })
+    if (-not $toks.Count) { return @() }
+
+    $out = New-Object System.Collections.ArrayList
+    for ($i = 0; $i -lt $people.Count; $i++) {
+        $p = $people[$i]
+        # Surnames only. First names are interchangeable in a way surnames are
+        # not: "Maria" is one letter from "Marta", so asking after Maria
+        # Ramsey suggested Marta Villa, a science teacher with nothing to do
+        # with anything. A surname one letter out is a misspelling; a first
+        # name one letter out is usually a different person.
+        $last = ([string](D $p 'last')).ToLowerInvariant()
+        if ($last.Length -lt 4) { continue }
+        $best = 99
+        foreach ($t in $toks) {
+            $lim = Get-StaffNearLimit -Len $t.Length
+            $d = Get-EditDistance -A $t -B $last -Max $lim
+            if ($d -le $lim -and $d -lt $best) { $best = $d }
+        }
+        if ($best -le 2) {
+            [void]$out.Add([pscustomobject]@{ P = $p; D = $best; Idx = $i })
+        }
+    }
+    if (-not $out.Count) { return @() }
+    $ranked = @($out | Sort-Object -Property @{ Expression = 'D' }, @{ Expression = 'Idx' } |
+                Select-Object -First 3)
+    return @($ranked | ForEach-Object { $_.P })
+}
+
+function Get-StaffStem {
+    <#
+      Enough of a word to match a job title with.
+
+      "Who teaches science" has to reach a title that reads "Teacher -
+      Science", and "teaches" shares no whole word with it. Cutting the
+      question's word back to its stem gets there without a list of every verb
+      form. Deliberately crude, and deliberately the same crude rule in all
+      three engines.
+    #>
+    param([string] $T)
+    $s = [string]$T
+    if ($s.Length -gt 4 -and $s -match 'ies$')  { return ($s.Substring(0, $s.Length - 3) + 'y') }
+    if ($s.Length -gt 5 -and $s -match 'ing$')  { return $s.Substring(0, $s.Length - 3) }
+    if ($s.Length -gt 4 -and $s -match 'es$')   { return $s.Substring(0, $s.Length - 2) }
+    if ($s.Length -gt 3 -and $s -match 's$' -and $s -notmatch 'ss$') {
+        return $s.Substring(0, $s.Length - 1)
+    }
+    return $s
+}
+
+function Get-StaffFor {
+    <# The people the question could be about: one school's, or everybody's. #>
+    param($Pack, $School)
+    $all = @(DA $Pack 'staff')
+    if (-not $School) { return @($all) }
+    $sid = [string](D $School 'id')
+    $mine = @($all | Where-Object { [string](D $_ 'schoolId') -eq $sid })
+    if ($mine.Count) { return @($mine) }
+    # A roster loaded for a district nobody has crawled carries no school id,
+    # because a districtwide directory does not say which school anyone is at.
+    # Better to search all of it than to answer "nobody works there".
+    return @($all | Where-Object { -not [string](D $_ 'schoolId') })
+}
+
+function Get-StaffLine {
+    <# How a person reads on one line: "Brooke Abrams - Teacher - English". #>
+    param($P)
+    $bits = @([string](D $P 'name'))
+    $t = [string](D $P 'title')
+    $dep = [string](D $P 'department')
+    if ($t) { $bits += $t } elseif ($dep) { $bits += $dep }
+    return ($bits -join ' - ')
+}
+
+function Get-StaffMatches {
+    <#
+      Who in this list the question is about.
+
+      Two quite different questions arrive here. "Who is Mrs Abrams" names a
+      person; "who teaches science" names a job. Both are answered from the
+      same rows, so both are scored and the stronger one wins, rather than the
+      engine deciding which kind of question it is first and getting it wrong
+      on "who is the science teacher".
+    #>
+    param($Pack, $Norm, $School)
+
+    $people = @(Get-StaffFor -Pack $Pack -School $School)
+    if (-not $people.Count) {
+        return [pscustomobject]@{ People = @(); ByName = $false }
+    }
+
+    $toks = @(Get-Tokens $Norm | Where-Object { $_.Length -gt 1 })
+    # Honorifics are dropped from the name side only. They are also job
+    # titles: "nurse", "principal" and "teacher" are how a parent asks about
+    # somebody whose name they do not know, and stripping them from both sides
+    # left "who is the school nurse" matching nothing at all.
+    $nameToks = @($toks | Where-Object { $script:StaffHonorifics -notcontains $_ })
+    $stop = @($script:QueryStop) + (Get-DistrictInfo $Pack).NameWords
+    $roleToks = @($toks |
+        Where-Object { $_.Length -gt 2 -and $stop -notcontains $_ } |
+        ForEach-Object { Get-StaffStem $_ } |
+        Where-Object { $_.Length -gt 2 })
+    $specificToks = @($roleToks | Where-Object { $script:StaffGeneric -notcontains $_ })
+
+    $scored = New-Object System.Collections.ArrayList
+    foreach ($p in $people) {
+        $first = ([string](D $p 'first')).ToLowerInvariant()
+        $last  = ([string](D $p 'last')).ToLowerInvariant()
+        $full  = ([string](D $p 'name')).ToLowerInvariant()
+        $name = 0
+
+        if ($full -and (Test-ContainsPhrase -Hay $Norm -Needle $full)) {
+            $name = 100
+        }
+        elseif ($last.Length -gt 2 -and $nameToks -contains $last) {
+            $name = if ($first.Length -gt 2 -and $nameToks -contains $first) { 90 } else { 60 }
+        }
+        elseif ($first.Length -gt 2 -and $nameToks -contains $first) {
+            $name = 25
+        }
+
+        $role = 0
+        $specificHits = 0
+        $title = ([string](D $p 'title')).ToLowerInvariant()
+        $dept  = ([string](D $p 'department')).ToLowerInvariant()
+        foreach ($t in $roleToks) {
+            $add = 0
+            if ($title.Contains($t))     { $add = 10 }
+            elseif ($dept.Contains($t))  { $add = 8 }
+            if (-not $add) { continue }
+            $role += $add
+            if ($script:StaffGeneric -notcontains $t) { $specificHits++ }
+        }
+        # The question named a subject or a job: that is the part that has to
+        # have been found.
+        if ($specificToks.Count -and -not $specificHits) { $role = 0 }
+
+        # The roster position is kept as a tiebreaker. Two people can score
+        # identically - "who is mr tate" finds both Tates with nothing to
+        # separate them - and Swift's sort is not stable where this one and
+        # the browser's are, so without an explicit tiebreaker the three
+        # engines would disagree about the order.
+        if ($name -or $role) {
+            [void]$scored.Add([pscustomobject]@{ P = $p; Name = $name; Role = $role; Idx = $scored.Count })
+        }
+    }
+    if (-not $scored.Count) {
+        return [pscustomobject]@{ People = @(); ByName = $false }
+    }
+
+    $bestName = ($scored | Measure-Object -Property Name -Maximum).Maximum
+    # A name is only a name if it is a surname or better. One shared first
+    # name is not enough to answer about a person.
+    if ($bestName -ge 60) {
+        $hits = @($scored | Where-Object { $_.Name -eq $bestName } |
+                  Sort-Object -Property @{ Expression = 'Role'; Descending = $true },
+                                        @{ Expression = 'Idx';  Descending = $false })
+        return [pscustomobject]@{ People = @($hits | ForEach-Object { $_.P }); ByName = $true }
+    }
+
+    $bestRole = ($scored | Measure-Object -Property Role -Maximum).Maximum
+    if (-not $bestRole) {
+        return [pscustomobject]@{ People = @(); ByName = $false }
+    }
+    $hits = @($scored | Where-Object { $_.Role -eq $bestRole } |
+              Sort-Object -Property @{ Expression = { [string](D $_.P 'name') } },
+                                    @{ Expression = 'Idx' })
+    return [pscustomobject]@{ People = @($hits | ForEach-Object { $_.P }); ByName = $false }
+}
+
+function Test-StaffNamesSomeone {
+    <#
+      Does the question name a particular person on the roster, first name and
+      surname both?
+
+      The routing guard's test, and stricter than the resolver's on purpose. A
+      surname by itself is an ordinary word: Edison's staff include a Day, a
+      Marsh, a Winter and a Church, so "is there school on a snow day" would
+      be dragged off to the staff list by a surname match alone. Requiring
+      both halves of a name removes the whole class of accident.
+    #>
+    param($Pack, $Norm, $School)
+
+    $people = @(Get-StaffFor -Pack $Pack -School $School)
+    if (-not $people.Count) { return $false }
+    $toks = @(Get-Tokens $Norm |
+              Where-Object { $_.Length -gt 1 -and $script:StaffHonorifics -notcontains $_ })
+    foreach ($p in $people) {
+        $full = ([string](D $p 'name')).ToLowerInvariant()
+        if ($full -and (Test-ContainsPhrase -Hay $Norm -Needle $full)) { return $true }
+        $first = ([string](D $p 'first')).ToLowerInvariant()
+        $last  = ([string](D $p 'last')).ToLowerInvariant()
+        if ($first.Length -gt 2 -and $last.Length -gt 2 -and
+            $toks -contains $first -and $toks -contains $last) { return $true }
+    }
+    return $false
+}
+
+function Get-StaffContactTail {
+    <#
+      Where to go for a staff member's email address, and why the app has not
+      got it.
+
+      Edison publishes an address for 156 of its 2,105 staff: two elementary
+      schools fill the field in, and its high school has set all 275 of its
+      entries to "hidden". Carrying the few that exist would mean answering
+      for some teachers and not others with no way for a parent to tell which,
+      and would mean shipping a list of educators' addresses the district
+      could no longer change. The school's own page is current and is theirs.
+    #>
+    param($Pack, $School)
+
+    $short = (Get-DistrictInfo $Pack).Short
+    $lines = @(("I don't carry staff email addresses - most {0} schools do not publish them, and the ones that do keep them on their own page, where they stay current." -f $short))
+
+    $rec = $null
+    if ($School) {
+        $sid = [string](D $School 'id')
+        foreach ($c in (DA $Pack 'contacts')) {
+            if ([string](D $c 'schoolId') -eq $sid) { $rec = $c; break }
+        }
+    }
+    $recPhone = if ($rec) { [string](D $rec 'phone') } else { '' }
+    $distPhone = [string](D (D $Pack 'district') 'phone')
+    if ($recPhone) {
+        $lines += ("The {0} office is {1} and will pass on a message." -f [string](D $School 'name'), $recPhone)
+    }
+    elseif ($distPhone) {
+        $lines += ("{0}'s main line is {1}." -f $short, $distPhone)
+    }
+    if ($School) {
+        $surl = [string](D $School 'url')
+        if ($surl) { $lines += ("Staff list: {0}" -f $surl) }
+    }
+    return ($lines -join "`n")
+}
+
+function Invoke-Resolver-StaffLookup {
+    param($Pack, $Rules, $Ctx)
+
+    $school = $Ctx.School
+    $people = @(Get-StaffFor -Pack $Pack -School $school)
+    $where = if ($school) { [string](D $school 'name') } else { (Get-DistrictInfo $Pack).Name }
+    $sid = if ($school) { [string](D $school 'id') } else { '' }
+    $surl = if ($school) { @([string](D $school 'url')) } else { @() }
+    $asksContact = [regex]::IsMatch($Ctx.Norm, '\b(e-?mail|email|phone|number|contact|reach|call)\b')
+
+    # Nothing loaded. Said plainly, because it fixes itself: the roster is
+    # fetched for the saved school and then answers offline.
+    if (-not $people.Count) {
+        $t = if ($school) {
+            "I haven't got ${where}'s staff list yet. It comes from the school's own directory and needs a connection the first time; after that I can answer from it with no signal."
+        } else {
+            "Tell me which school and I'll look up who works there."
+        }
+        return New-Answer -Text $t -Intent 'staff_lookup' -Kind 'no_roster' `
+                          -Confidence 0.4 -Sources $surl -SchoolId $sid
+    }
+
+    $hit = Get-StaffMatches -Pack $Pack -Norm $Ctx.Norm -School $school
+
+    if (-not @($hit.People).Count) {
+        $near = @(Get-StaffNearMisses -Pack $Pack -Norm $Ctx.Norm -School $school)
+        $head = "No one matching that is in ${where}'s staff list, and I have all {0} people on it." -f $people.Count
+        $lines = @($head)
+        if ($near.Count -eq 1) {
+            $lines += ''
+            $lines += ("Did you mean {0}?" -f (Get-StaffLine $near[0]))
+        }
+        elseif ($near.Count -gt 1) {
+            $lines += ''
+            $lines += 'Did you mean one of these?'
+            foreach ($q in $near) { $lines += ('- ' + (Get-StaffLine $q)) }
+        }
+        else {
+            # Nothing close either. Then the two things that are actually likely.
+            $lines[0] = $head + ' The name may be spelt differently, or they may be at another school.'
+        }
+        if ($asksContact) {
+            $lines += ''
+            $lines += (Get-StaffContactTail -Pack $Pack -School $school)
+        }
+        $kind = if ($near.Count) { 'did_you_mean' } else { 'not_found' }
+        $conf = if ($near.Count) { 0.6 } else { 0.55 }
+        return New-Answer -Text ($lines -join "`n") -Intent 'staff_lookup' -Kind $kind `
+                          -Confidence $conf -Sources $surl -SchoolId $sid
+    }
+
+    $hits = @($hit.People)
+
+    if ($hit.ByName) {
+        $p = $hits[0]
+        $pname = [string](D $p 'name')
+        $ptitle = [string](D $p 'title')
+        $pdept = [string](D $p 'department')
+        $role = if ($ptitle) { $ptitle } else { $pdept }
+        $lines = @()
+        $opener = if ($role) { "$pname is $role at $where." } else { "$pname is on ${where}'s staff list." }
+        $lines += $opener
+        if ($ptitle -and $pdept -and -not $ptitle.ToLowerInvariant().Contains($pdept.ToLowerInvariant())) {
+            $lines += "Department: $pdept"
+        }
+        # Two people can share a surname: both get named rather than the app
+        # picking one and sounding certain.
+        if ($hits.Count -gt 1) {
+            $lines += ''
+            $lines += ("{0} people there match that name:" -f $hits.Count)
+            foreach ($q in @($hits | Select-Object -First 6)) { $lines += ('- ' + (Get-StaffLine $q)) }
+        }
+        if ($asksContact) {
+            $lines += ''
+            $lines += (Get-StaffContactTail -Pack $Pack -School $school)
+        }
+        return New-Answer -Text ($lines -join "`n") -Intent 'staff_lookup' -Kind 'person' `
+                          -Confidence 0.85 -Sources $surl -SchoolId $sid
+    }
+
+    # "Who is the school nurse" has one answer, and a list of one reads like
+    # the app could not quite manage a sentence.
+    if ($hits.Count -eq 1) {
+        $p = $hits[0]
+        $pname = [string](D $p 'name')
+        $ptitle = [string](D $p 'title')
+        $pdept = [string](D $p 'department')
+        $role = if ($ptitle) { $ptitle } else { $pdept }
+        $lines1 = @()
+        $opener = if ($role) { "$pname is $role at $where." } else { "$pname is on ${where}'s staff list." }
+        $lines1 += $opener
+        if ($asksContact) {
+            $lines1 += ''
+            $lines1 += (Get-StaffContactTail -Pack $Pack -School $school)
+        }
+        return New-Answer -Text ($lines1 -join "`n") -Intent 'staff_lookup' -Kind 'role' `
+                          -Confidence 0.85 -Sources $surl -SchoolId $sid
+    }
+
+    $shown = @($hits | Select-Object -First 8)
+    $lines = @(("{0} people at {1} match:" -f $hits.Count, $where))
+    foreach ($p in $shown) { $lines += ('- ' + (Get-StaffLine $p)) }
+    if ($hits.Count -gt $shown.Count) {
+        $lines += ("...and {0} more." -f ($hits.Count - $shown.Count))
+    }
+    if ($asksContact) {
+        $lines += ''
+        $lines += (Get-StaffContactTail -Pack $Pack -School $school)
+    }
+    return New-Answer -Text ($lines -join "`n") -Intent 'staff_lookup' -Kind 'role' `
+                      -Confidence 0.8 -Sources $surl -SchoolId $sid
+}
+
 function Invoke-Resolver-FactSearch {
     param($Pack, $Rules, $Ctx)
 
-    # Drop question scaffolding so retrieval sees the topic words.
-    $stop = @('what','when','where','who','how','why','is','are','do','does','did','the','a','an',
-              'my','our','i','we','you','to','for','of','in','on','at','it','its','be','can','could',
-              'should','would','will','there','their','and','or','if','about','from','me','kid','kids',
-              'child','children','son','daughter','school','schools','district','please','tell') +
-             (Get-DistrictInfo $Pack).NameWords
+    # Drop question scaffolding so retrieval sees the topic words. The same
+    # list the staff matcher works from - see $script:QueryStop.
+    $stop = @($script:QueryStop) + (Get-DistrictInfo $Pack).NameWords
     $terms = @(Get-Tokens $Ctx.Norm | Where-Object { $_.Length -gt 2 -and $stop -notcontains $_ })
     if (-not $terms.Count) {
         $terms = @(Get-Tokens $Ctx.Norm | Where-Object { $_.Length -gt 2 })
@@ -1849,6 +2313,17 @@ function Invoke-Query {
         }
     }
 
+    # A question that names a member of staff is about that person, whatever
+    # else it is worded like. "What is Maria Ramsey's email" reaches here as
+    # fact_search, because no word list can hold every name in a district;
+    # the roster can, so it is asked. Only the two buckets that mean "no
+    # better idea" are overridden - a question that already resolved to the
+    # calendar or the bell times keeps its answer.
+    if (($resolver -eq 'fact_search' -or $resolver -eq 'contact_info') -and
+        (Test-StaffNamesSomeone -Pack $Pack -Norm $norm -School $ctx.School)) {
+        $resolver = 'staff_lookup'
+    }
+
     $ans = switch ($resolver) {
         'school_status'   { Invoke-Resolver-SchoolStatus  -Pack $Pack -Rules $Rules -Ctx $ctx }
         'day_schedule'    { Invoke-Resolver-DaySchedule   -Pack $Pack -Rules $Rules -Ctx $ctx }
@@ -1859,6 +2334,7 @@ function Invoke-Query {
         'list_occurrences'{ Invoke-Resolver-ListOccurrences -Pack $Pack -Rules $Rules -Ctx $ctx }
         'absence_report'  { Invoke-Resolver-AbsenceReport -Pack $Pack -Rules $Rules -Ctx $ctx }
         'contact_info'    { Invoke-Resolver-ContactInfo   -Pack $Pack -Rules $Rules -Ctx $ctx }
+        'staff_lookup'    { Invoke-Resolver-StaffLookup  -Pack $Pack -Rules $Rules -Ctx $ctx }
         default           { Invoke-Resolver-FactSearch    -Pack $Pack -Rules $Rules -Ctx $ctx }
     }
 

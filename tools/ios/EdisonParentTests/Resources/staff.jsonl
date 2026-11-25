@@ -1,0 +1,42 @@
+{"_":"CONTRACT FILE. Staff answers. Run with -StaffFixture tests/staff-roster.json, which injects that stand-in roster into a copy of the real pack; the engines under test are engine/Answer-Query.ps1, web/engine.js and ios/EdisonParent/AnswerEngine.swift, and all three must pass every case. 'today' is pinned so results never drift; 2026-11-20 is a Friday in the 2026-27 school year."}
+
+{"_":"--- a role only one person holds ---"}
+{"q":"who is the school nurse","today":"2026-11-20","school":"wwms","resolver":"staff_lookup","contains":["Priya Raman is School Nurse at Woodrow Wilson Middle School."],"notContains":["people at"]}
+{"q":"who is the nurse at woodrow wilson","today":"2026-11-20","resolver":"staff_lookup","contains":["Priya Raman is School Nurse"]}
+{"q":"who is the principal of woodrow wilson","today":"2026-11-20","school":"wwms","resolver":"staff_lookup","contains":["Daniel Okonkwo is Principal at Woodrow Wilson Middle School."]}
+
+{"_":"--- a subject, several people ---"}
+{"q":"who teaches science","today":"2026-11-20","school":"wwms","resolver":"staff_lookup","contains":["2 people at Woodrow Wilson Middle School match:","- Alan Reyes - Teacher - Science","- Marta Villa - Teacher - Science"]}
+{"q":"who teaches band at woodrow wilson","today":"2026-11-20","school":"wwms","resolver":"staff_lookup","contains":["Omar Tate is Teacher - Band at Woodrow Wilson Middle School."]}
+
+{"_":"--- a person by name, with and without an honorific ---"}
+{"q":"what does helen marsh teach","today":"2026-11-20","school":"wwms","resolver":"staff_lookup","contains":["Helen Marsh is Teacher - English at Woodrow Wilson Middle School.","Department: Language Arts"]}
+{"q":"who is mrs marsh","today":"2026-11-20","school":"wwms","resolver":"staff_lookup","contains":["Helen Marsh is Teacher - English"]}
+{"q":"what room is helen marsh in","today":"2026-11-20","school":"wwms","resolver":"staff_lookup","contains":["Helen Marsh is Teacher - English"]}
+
+{"_":"--- two people share a surname: name both rather than pick one ---"}
+{"q":"who is mr tate","today":"2026-11-20","school":"wwms","resolver":"staff_lookup","contains":["2 people there match that name:","- Omar Tate - Teacher - Band","- Lena Tate - School Secretary I"]}
+
+{"_":"--- somebody who does not work here. The honest answer, and where to look. ---"}
+{"q":"what is maria ramsey's email","today":"2026-11-20","school":"wwms","resolver":"staff_lookup","contains":["No one matching that is in Woodrow Wilson Middle School's staff list","8 people on it","I don't carry staff email addresses"],"notContains":["Ramsey is"]}
+{"q":"what is helen marsh's email","today":"2026-11-20","school":"wwms","resolver":"staff_lookup","contains":["Helen Marsh is Teacher - English","I don't carry staff email addresses","Staff list: "]}
+
+{"_":"--- one letter out. The whole reason this exists: 'Maria Ramsey' found nothing in 2,105 names, twice, and the roster says Ramsay. ---"}
+{"q":"who is helen marshe","today":"2026-11-20","school":"wwms","resolver":"staff_lookup","contains":["No one matching that is in Woodrow Wilson Middle School's staff list","Did you mean Helen Marsh - Teacher - English?"],"notContains":["may be spelt differently"]}
+{"q":"what is helen marshe's email","today":"2026-11-20","school":"wwms","resolver":"staff_lookup","contains":["Did you mean Helen Marsh - Teacher - English?","I don't carry staff email addresses"]}
+{"q":"who is priya ramen","today":"2026-11-20","school":"wwms","resolver":"staff_lookup","contains":["Did you mean Priya Raman - School Nurse?"]}
+
+{"_":"--- but it must not guess. A name nothing is close to gets the plain answer. ---"}
+{"q":"who is barbara nguyen","today":"2026-11-20","school":"wwms","resolver":"staff_lookup","contains":["The name may be spelt differently, or they may be at another school."],"notContains":["Did you mean"]}
+{"q":"what is maria ramsey's email","today":"2026-11-20","school":"wwms","resolver":"staff_lookup","notContains":["Did you mean"]}
+
+{"_":"--- the roster is scoped to the school that was asked about ---"}
+{"q":"who teaches math","today":"2026-11-20","school":"tjms","resolver":"staff_lookup","contains":["Alan Reyes is Teacher - Math at Thomas Jefferson Middle School."]}
+{"q":"who teaches science","today":"2026-11-20","school":"tjms","resolver":"staff_lookup","contains":["No one matching that is in Thomas Jefferson Middle School's staff list","1 people on it"]}
+
+{"_":"--- and the things it must NOT take over. A surname is an ordinary word. ---"}
+{"q":"when is winter break","today":"2026-11-20","school":"wwms","resolver":"break_dates","notContains":["Ruth Winter","staff list"]}
+{"q":"is there school tomorrow","today":"2026-11-20","school":"wwms","resolver":"school_status","notContains":["staff list"]}
+{"q":"what time does woodrow wilson start","today":"2026-11-20","school":"wwms","resolver":"bell_times","notContains":["staff list"]}
+{"q":"what is the school's email address","today":"2026-11-20","school":"wwms","notContains":["No one matching that"]}
+{"q":"how do i report my child absent","today":"2026-11-20","school":"wwms","resolver":"absence_report","notContains":["staff list"]}

@@ -40,12 +40,52 @@ final class KnowledgeStore: ObservableObject {
     @Published private(set) var liveAlerts: [ClosingAlert] = []
     @Published private(set) var lastAlertCheck: Date?
 
+    /// Who works at the saved schools, read from each school's own published
+    /// directory. Not in the file on disk - see StaffDirectory for why.
+    @Published private(set) var liveStaff: [StaffMember] = []
+
     /// The pack the engine actually answers from: the bundled one with live
-    /// alerts folded in, so a snow closing beats the published calendar.
+    /// alerts folded in, so a snow closing beats the published calendar, and
+    /// the staff list folded in the same way.
     var effectivePack: KnowledgePack? {
         guard var p = pack else { return nil }
         p.alerts = AlertParser.merge((p.alerts ?? []) + liveAlerts)
+        p.staff = (p.staff ?? []) + liveStaff
         return p
+    }
+
+    /// Loads the staff list for each saved school.
+    ///
+    /// Whatever is already on the phone is adopted first, so a question asked
+    /// a second after opening the app is answered from the roster rather than
+    /// told to wait. Only then does it go to the network, and only for a
+    /// school whose copy is missing or more than a week old.
+    ///
+    /// Nothing depends on this: a staff question that arrives before the first
+    /// load finishes says so plainly, and the one after it works. The
+    /// calendar, the hours and the closings never touch this path.
+    @MainActor
+    func refreshStaff() async {
+        guard let p = pack else { return }
+        // The district's own number is not on the pack's district record -
+        // Swift never decoded that field - but the picker saves it, which is
+        // the only place it is needed: a district built in the app, whose
+        // schools have no org ids of their own.
+        let districtOrgId = chosenDistrictOrgId
+        let saved = UserDefaults.standard.string(forKey: "defaultSchoolId") ?? ""
+        let schools = saved.isEmpty ? [] : p.schools.filter { $0.id == saved }
+        guard !schools.isEmpty || districtOrgId != 0 else { return }
+
+        let onPhone = StaffDirectory.cached(for: schools)
+        if !onPhone.isEmpty { liveStaff = onPhone }
+
+        var rows: [StaffMember] = []
+        if schools.contains(where: { $0.orgId != 0 }) {
+            for s in schools { rows += await StaffDirectory.load(school: s) }
+        } else {
+            rows = await StaffDirectory.loadDistrictWide(orgId: districtOrgId)
+        }
+        if !rows.isEmpty { liveStaff = rows }
     }
 
     var engine: AnswerEngine? {

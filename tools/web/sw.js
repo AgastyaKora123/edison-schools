@@ -12,7 +12,7 @@
 // every later update - including the monthly refresh - would reach nobody.
 const CACHE = 'schools-__BUILD__';
 const ASSETS = ['./', 'index.html', 'engine.js', 'district.js', 'practice.js',
-                'calfile.js', 'lessons.js', 'app.js',
+                'calfile.js', 'lessons.js', 'staff.js', 'app.js',
                 'data/pack.js', 'data/rules.js', 'data/districts.js', 'data/packs.js',
                 'data/lessons.js',
                 'manifest.webmanifest', 'icon.svg'];

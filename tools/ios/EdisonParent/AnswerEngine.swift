@@ -213,6 +213,18 @@ struct AnswerEngine {
             }
         }
 
+        // A question that names a member of staff is about that person,
+        // whatever else it is worded like. "What is Maria Ramsey's email"
+        // reaches here as fact_search, because no word list can hold every
+        // name in a district; the roster can, so it is asked. Only the two
+        // buckets that mean "no better idea" are overridden - a question
+        // that already resolved to the calendar or the bell times keeps its
+        // answer.
+        if resolver == "fact_search" || resolver == "contact_info",
+           staffNamesSomeone(norm, school: ctx.school) {
+            resolver = "staff_lookup"
+        }
+
         let debug = Answer.Debug(
             resolver: resolver,
             topIntent: top?.id ?? "",
@@ -235,6 +247,7 @@ struct AnswerEngine {
         case "list_occurrences": result = resolveListOccurrences(ctx)
         case "absence_report":  result = resolveAbsenceReport(ctx)
         case "contact_info":    result = resolveContactInfo(ctx)
+        case "staff_lookup":    result = resolveStaffLookup(ctx)
         default:                result = resolveFactSearch(ctx)
         }
         result.debug = debug
@@ -1369,6 +1382,361 @@ struct AnswerEngine {
         t += "\n\nFor a specific school, name it and I'll give you that office."
         return make(t, intent: "contact_info", kind: "district",
                     sources: [pack.district.url], confidence: 0.85)
+    }
+
+    // MARK: - Resolver: staff lookup
+
+    /// Words in front of a name that are not part of it. A parent asks about
+    /// "Mrs Abrams"; the roster says "Brooke Abrams".
+    static let staffHonorifics: Set<String> = [
+        "mr", "mrs", "ms", "miss", "mx", "dr", "doctor", "prof", "professor",
+        "sir", "madam", "maam", "coach", "nurse", "principal", "teacher"
+    ]
+
+    /// Role words that say "a person who works here" and nothing more.
+    ///
+    /// These cannot carry a match on their own. "Who teaches science" at a
+    /// school with no science teacher was answering "Alan Reyes is Teacher -
+    /// Math", because "teach" is in every teacher's title and "science" was
+    /// simply ignored once something had matched. Where the question names a
+    /// subject or a job, that is the part that has to be found; these only
+    /// help rank, and only answer by themselves when they are all the
+    /// question gave ("who are the teachers").
+    static let staffGeneric: Set<String> = [
+        "teach", "teacher", "staff", "work", "faculty", "employee", "member",
+        "people", "person", "someone", "anybody", "anyone"
+    ]
+
+    /// How far apart two words are: the number of single-letter insertions,
+    /// deletions or substitutions that turn one into the other.
+    ///
+    /// Here because of one letter. A parent asked after "Maria Ramsey"; the
+    /// roster says "Maria Ramsay". Searching 2,105 names found nothing,
+    /// twice, and the honest answer - "no one by that name works here" - was
+    /// wrong about a teacher two corridors away. Exact matching cannot tell a
+    /// name that is absent from a name that is misremembered, and those need
+    /// different answers.
+    ///
+    /// Gives up as soon as the lengths alone put the words further apart than
+    /// `max`, which is most of the 2,105 comparisons.
+    static func editDistance(_ a: String, _ b: String, max: Int) -> Int {
+        let x = Array(a), y = Array(b)
+        if abs(x.count - y.count) > max { return max + 1 }
+        var prev = Array(0...y.count)
+        var cur = [Int](repeating: 0, count: y.count + 1)
+        if x.isEmpty { return y.count }
+        for i in 1...x.count {
+            cur[0] = i
+            if !y.isEmpty {
+                for j in 1...y.count {
+                    let cost = x[i - 1] == y[j - 1] ? 0 : 1
+                    cur[j] = Swift.min(cur[j - 1] + 1, prev[j] + 1, prev[j - 1] + cost)
+                }
+            }
+            swap(&prev, &cur)
+        }
+        return prev[y.count]
+    }
+
+    /// How wrong a word is allowed to be before it stops being the same name.
+    ///
+    /// One letter in a short name, two in a long one. Tight on purpose: at
+    /// two letters out of five, "Marsh" would reach "Marsha", "Marsa" and
+    /// "Harsh", and a suggestion that is wrong is worse than no suggestion -
+    /// the parent goes and emails the wrong teacher.
+    static func staffNearLimit(_ len: Int) -> Int { len >= 8 ? 2 : 1 }
+
+    /// People whose name is nearly, but not quite, one of the words asked
+    /// about.
+    ///
+    /// Only ever consulted once the ordinary match has found nobody, so a
+    /// suggestion cannot displace a real answer - at worst it turns a flat
+    /// "no" into a question. At most three, best first, because a list of six
+    /// possible spellings is no more use than none.
+    func staffNearMisses(_ norm: String, school: School?) -> [StaffMember] {
+        let people = staffFor(school)
+        if people.isEmpty { return [] }
+        let toks = Self.tokens(norm).filter {
+            $0.count >= 4 && !Self.staffHonorifics.contains($0)
+                && !stop.contains($0) && !Self.staffGeneric.contains($0)
+        }
+        if toks.isEmpty { return [] }
+
+        struct Near { var p: StaffMember; var d: Int; var idx: Int }
+        var out: [Near] = []
+        for (i, p) in people.enumerated() {
+            // Surnames only. First names are interchangeable in a way
+            // surnames are not: "Maria" is one letter from "Marta", so asking
+            // after Maria Ramsey suggested Marta Villa, a science teacher
+            // with nothing to do with anything. A surname one letter out is a
+            // misspelling; a first name one letter out is usually a different
+            // person.
+            let last = p.last.lowercased()
+            if last.count < 4 { continue }
+            var best = 99
+            for t in toks {
+                let lim = Self.staffNearLimit(t.count)
+                let d = Self.editDistance(t, last, max: lim)
+                if d <= lim, d < best { best = d }
+            }
+            if best <= 2 { out.append(Near(p: p, d: best, idx: i)) }
+        }
+        if out.isEmpty { return [] }
+        return out
+            .sorted { $0.d != $1.d ? $0.d < $1.d : $0.idx < $1.idx }
+            .prefix(3)
+            .map(\.p)
+    }
+
+    /// Enough of a word to match a job title with.
+    ///
+    /// "Who teaches science" has to reach a title that reads "Teacher -
+    /// Science", and "teaches" shares no whole word with it. Cutting the
+    /// question's word back to its stem gets there without a list of every
+    /// verb form. Deliberately crude, and deliberately the same crude rule in
+    /// engine/Answer-Query.ps1 and web/engine.js.
+    static func staffStem(_ t: String) -> String {
+        let s = t
+        if s.count > 4, s.hasSuffix("ies") { return String(s.dropLast(3)) + "y" }
+        if s.count > 5, s.hasSuffix("ing") { return String(s.dropLast(3)) }
+        if s.count > 4, s.hasSuffix("es")  { return String(s.dropLast(2)) }
+        if s.count > 3, s.hasSuffix("s"), !s.hasSuffix("ss") { return String(s.dropLast(1)) }
+        return s
+    }
+
+    /// The people the question could be about: one school's, or everybody's.
+    func staffFor(_ school: School?) -> [StaffMember] {
+        let all = pack.staff ?? []
+        guard let s = school else { return all }
+        let mine = all.filter { $0.schoolId == s.id }
+        if !mine.isEmpty { return mine }
+        // A roster loaded for a district nobody has crawled carries no school
+        // id, because a districtwide directory does not say which school
+        // anyone is at. Better to search all of it than to answer "nobody
+        // works there".
+        return all.filter { $0.schoolId.isEmpty }
+    }
+
+    struct StaffHit {
+        var people: [StaffMember]
+        var byName: Bool
+    }
+
+    /// Who in this list the question is about.
+    ///
+    /// Two quite different questions arrive here. "Who is Mrs Abrams" names a
+    /// person; "who teaches science" names a job. Both are answered from the
+    /// same rows, so both are scored and the stronger one wins, rather than
+    /// the engine deciding which kind of question it is first and getting it
+    /// wrong on "who is the science teacher".
+    func staffMatches(_ norm: String, school: School?) -> StaffHit {
+        let people = staffFor(school)
+        if people.isEmpty { return StaffHit(people: [], byName: false) }
+
+        let toks = Self.tokens(norm).filter { $0.count > 1 }
+        // Honorifics are dropped from the name side only. They are also job
+        // titles: "nurse", "principal" and "teacher" are how a parent asks
+        // about somebody whose name they do not know, and stripping them from
+        // both sides left "who is the school nurse" matching nothing at all.
+        let nameToks = Set(toks.filter { !Self.staffHonorifics.contains($0) })
+        let roleToks = toks
+            .filter { $0.count > 2 && !stop.contains($0) }
+            .map { Self.staffStem($0) }
+            .filter { $0.count > 2 }
+        let specificToks = roleToks.filter { !Self.staffGeneric.contains($0) }
+
+        // idx keeps the roster position as a tiebreaker. Two people can score
+        // identically - "who is mr tate" finds both Tates with nothing to
+        // separate them - and Swift's sort is not stable, so without this the
+        // three engines would disagree about the order.
+        struct Scored { var p: StaffMember; var name: Int; var role: Int; var idx: Int }
+        var scored: [Scored] = []
+
+        for p in people {
+            let first = p.first.lowercased()
+            let last = p.last.lowercased()
+            let full = p.name.lowercased()
+            var name = 0
+
+            if !full.isEmpty, Self.containsPhrase(norm, full) {
+                name = 100
+            } else if last.count > 2, nameToks.contains(last) {
+                name = (first.count > 2 && nameToks.contains(first)) ? 90 : 60
+            } else if first.count > 2, nameToks.contains(first) {
+                name = 25
+            }
+
+            var role = 0
+            var specificHits = 0
+            let title = p.title.lowercased()
+            let dept = p.department.lowercased()
+            for t in roleToks {
+                var add = 0
+                if title.contains(t) { add = 10 } else if dept.contains(t) { add = 8 }
+                if add == 0 { continue }
+                role += add
+                if !Self.staffGeneric.contains(t) { specificHits += 1 }
+            }
+            // The question named a subject or a job: that is the part that has
+            // to have been found.
+            if !specificToks.isEmpty, specificHits == 0 { role = 0 }
+
+            if name != 0 || role != 0 {
+                scored.append(Scored(p: p, name: name, role: role, idx: scored.count))
+            }
+        }
+        if scored.isEmpty { return StaffHit(people: [], byName: false) }
+
+        let bestName = scored.map(\.name).max() ?? 0
+        // A name is only a name if it is a surname or better. One shared first
+        // name is not enough to answer about a person.
+        if bestName >= 60 {
+            let hits = scored.filter { $0.name == bestName }
+                .sorted { $0.role != $1.role ? $0.role > $1.role : $0.idx < $1.idx }
+            return StaffHit(people: hits.map(\.p), byName: true)
+        }
+
+        let bestRole = scored.map(\.role).max() ?? 0
+        if bestRole == 0 { return StaffHit(people: [], byName: false) }
+        let hits = scored.filter { $0.role == bestRole }
+            .sorted { $0.p.name != $1.p.name ? $0.p.name < $1.p.name : $0.idx < $1.idx }
+        return StaffHit(people: hits.map(\.p), byName: false)
+    }
+
+    /// Does the question name a particular person on the roster, first name
+    /// and surname both?
+    ///
+    /// The routing guard's test, and stricter than the resolver's on purpose.
+    /// A surname by itself is an ordinary word: Edison's staff include a Day,
+    /// a Marsh, a Winter and a Church, so "is there school on a snow day"
+    /// would be dragged off to the staff list by a surname match alone.
+    /// Requiring both halves of a name removes the whole class of accident.
+    func staffNamesSomeone(_ norm: String, school: School?) -> Bool {
+        let people = staffFor(school)
+        if people.isEmpty { return false }
+        let toks = Set(Self.tokens(norm).filter { $0.count > 1 && !Self.staffHonorifics.contains($0) })
+        for p in people {
+            let full = p.name.lowercased()
+            if !full.isEmpty, Self.containsPhrase(norm, full) { return true }
+            let first = p.first.lowercased()
+            let last = p.last.lowercased()
+            if first.count > 2, last.count > 2, toks.contains(first), toks.contains(last) { return true }
+        }
+        return false
+    }
+
+    /// How a person reads on one line: "Brooke Abrams - Teacher - English".
+    static func staffLine(_ p: StaffMember) -> String {
+        var bits = [p.name]
+        if !p.title.isEmpty { bits.append(p.title) } else if !p.department.isEmpty { bits.append(p.department) }
+        return bits.joined(separator: " - ")
+    }
+
+    /// Where to go for a staff member's email address, and why the app has
+    /// not got it.
+    ///
+    /// Edison publishes an address for 156 of its 2,105 staff: two elementary
+    /// schools fill the field in, and its high school has set all 275 of its
+    /// entries to "hidden". Carrying the few that exist would mean answering
+    /// for some teachers and not others with no way for a parent to tell
+    /// which, and would mean shipping a list of educators' addresses the
+    /// district could no longer change.
+    func staffContactTail(_ school: School?) -> String {
+        var lines = ["I don't carry staff email addresses - most \(districtShort) schools do not publish them, and the ones that do keep them on their own page, where they stay current."]
+        let rec = school.flatMap { s in pack.contacts.first { $0.schoolId == s.id } }
+        if let r = rec, !r.phone.isEmpty, let s = school {
+            lines.append("The \(s.name) office is \(r.phone) and will pass on a message.")
+        } else if !pack.district.phone.isEmpty {
+            lines.append("\(districtShort)'s main line is \(pack.district.phone).")
+        }
+        if let s = school, !s.url.isEmpty { lines.append("Staff list: \(s.url)") }
+        return lines.joined(separator: "\n")
+    }
+
+    func resolveStaffLookup(_ ctx: Context) -> Answer {
+        let school = ctx.school
+        let people = staffFor(school)
+        let where_ = school?.name ?? pack.district.name
+        let sid = school?.id ?? ""
+        let sources = school.map { [$0.url] } ?? []
+        let asksContact = Self.matches(ctx.norm, #"\b(e-?mail|email|phone|number|contact|reach|call)\b"#)
+
+        // Nothing loaded. Said plainly, because it fixes itself: the roster is
+        // fetched for the saved school and then answers offline.
+        if people.isEmpty {
+            let t = school != nil
+                ? "I haven't got \(where_)'s staff list yet. It comes from the school's own directory and needs a connection the first time; after that I can answer from it with no signal."
+                : "Tell me which school and I'll look up who works there."
+            return make(t, intent: "staff_lookup", kind: "no_roster",
+                        sources: sources, confidence: 0.4, schoolId: sid)
+        }
+
+        let hit = staffMatches(ctx.norm, school: school)
+
+        if hit.people.isEmpty {
+            let near = staffNearMisses(ctx.norm, school: school)
+            let head = "No one matching that is in \(where_)'s staff list, and I have all \(people.count) people on it."
+            var lines = [head]
+            if near.count == 1 {
+                lines.append("")
+                lines.append("Did you mean \(Self.staffLine(near[0]))?")
+            } else if near.count > 1 {
+                lines.append("")
+                lines.append("Did you mean one of these?")
+                for q in near { lines.append("- " + Self.staffLine(q)) }
+            } else {
+                // Nothing close either. Then the two things that are actually
+                // likely.
+                lines[0] = head + " The name may be spelt differently, or they may be at another school."
+            }
+            if asksContact { lines.append(""); lines.append(staffContactTail(school)) }
+            return make(lines.joined(separator: "\n"), intent: "staff_lookup",
+                        kind: near.isEmpty ? "not_found" : "did_you_mean",
+                        sources: sources, confidence: near.isEmpty ? 0.55 : 0.6, schoolId: sid)
+        }
+
+        if hit.byName {
+            let p = hit.people[0]
+            let role = p.title.isEmpty ? p.department : p.title
+            var lines = [role.isEmpty ? "\(p.name) is on \(where_)'s staff list."
+                                      : "\(p.name) is \(role) at \(where_)."]
+            if !p.title.isEmpty, !p.department.isEmpty,
+               !p.title.lowercased().contains(p.department.lowercased()) {
+                lines.append("Department: \(p.department)")
+            }
+            // Two people can share a surname: both get named rather than the
+            // app picking one and sounding certain.
+            if hit.people.count > 1 {
+                lines.append("")
+                lines.append("\(hit.people.count) people there match that name:")
+                for q in hit.people.prefix(6) { lines.append("- " + Self.staffLine(q)) }
+            }
+            if asksContact { lines.append(""); lines.append(staffContactTail(school)) }
+            return make(lines.joined(separator: "\n"), intent: "staff_lookup", kind: "person",
+                        sources: sources, confidence: 0.85, schoolId: sid)
+        }
+
+        // "Who is the school nurse" has one answer, and a list of one reads
+        // like the app could not quite manage a sentence.
+        if hit.people.count == 1 {
+            let p = hit.people[0]
+            let role = p.title.isEmpty ? p.department : p.title
+            var lines = [role.isEmpty ? "\(p.name) is on \(where_)'s staff list."
+                                      : "\(p.name) is \(role) at \(where_)."]
+            if asksContact { lines.append(""); lines.append(staffContactTail(school)) }
+            return make(lines.joined(separator: "\n"), intent: "staff_lookup", kind: "role",
+                        sources: sources, confidence: 0.85, schoolId: sid)
+        }
+
+        let shown = Array(hit.people.prefix(8))
+        var lines = ["\(hit.people.count) people at \(where_) match:"]
+        for p in shown { lines.append("- " + Self.staffLine(p)) }
+        if hit.people.count > shown.count {
+            lines.append("...and \(hit.people.count - shown.count) more.")
+        }
+        if asksContact { lines.append(""); lines.append(staffContactTail(school)) }
+        return make(lines.joined(separator: "\n"), intent: "staff_lookup", kind: "role",
+                    sources: sources, confidence: 0.8, schoolId: sid)
     }
 
     // MARK: - Resolver: fact search
