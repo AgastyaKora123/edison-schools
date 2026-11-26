@@ -10,7 +10,7 @@
 // this file if the file's own contents changed. With a fixed name, someone who
 // opened the app once would keep the files they saved that day for ever, and
 // every later update - including the monthly refresh - would reach nobody.
-const CACHE = 'schools-20261125233547';
+const CACHE = 'schools-20261126035047';
 const ASSETS = ['./', 'index.html', 'engine.js', 'district.js', 'practice.js',
                 'calfile.js', 'lessons.js', 'staff.js', 'app.js',
                 'data/pack.js', 'data/rules.js', 'data/districts.js', 'data/packs.js',

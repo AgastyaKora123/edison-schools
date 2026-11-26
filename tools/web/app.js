@@ -699,6 +699,41 @@
 
   // ---------------------------------------------------------------- alerts
 
+  /**
+   * One line saying a new version is downloaded and waiting.
+   *
+   * Only ever shown when the automatic reload below was held back because a
+   * question had already been asked. The new files are on the phone either
+   * way; the choice being offered is whether to take them now or on the next
+   * open, and "Later" is a real answer - the update is not going anywhere.
+   *
+   * Built from real nodes rather than assembled markup, like every other
+   * piece of text the app puts on screen.
+   */
+  function showUpdateBar() {
+    const box = el('updatebar');
+    if (!box || !box.hidden) return;        // already up; do not stack
+    box.innerHTML = '';
+
+    const msg = document.createElement('span');
+    msg.textContent = 'A newer version is ready.';
+
+    const now = document.createElement('button');
+    now.type = 'button';
+    now.textContent = 'Reload now';
+    now.addEventListener('click', () => location.reload());
+
+    const later = document.createElement('button');
+    later.type = 'button';
+    later.textContent = 'Later';
+    later.addEventListener('click', () => { box.hidden = true; });
+
+    box.appendChild(msg);
+    box.appendChild(now);
+    box.appendChild(later);
+    box.hidden = false;
+  }
+
   function renderAlerts() {
     alertsBox.innerHTML = '';
     const today = E.isoOf(E.todayIn(PACK.district.timeZone));
@@ -2034,10 +2069,17 @@
     // Only on an update, never on a first visit: on a first visit there is
     // no controller yet, the page already has the newest files, and
     // reloading would just be a flicker for nothing.
+    //
+    // Holding the reload back used to mean saying nothing at all: the new
+    // version sat downloaded and ready while the page carried on answering
+    // from the old one, for as long as the app stayed open, with no way for
+    // anyone to know. Now that case gets a line offering the choice, which
+    // is the only honest thing to do with an update somebody cannot see.
     const hadController = !!navigator.serviceWorker.controller;
     let reloading = false;
     navigator.serviceWorker.addEventListener('controllerchange', () => {
-      if (reloading || asked || !hadController) return;
+      if (reloading || !hadController) return;
+      if (asked) { showUpdateBar(); return; }
       reloading = true;
       location.reload();
     });

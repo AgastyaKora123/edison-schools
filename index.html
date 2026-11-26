@@ -500,6 +500,34 @@ main {
 .alert p { margin: 0; font-size: 13.5px; color: var(--ink); opacity: .85; }
 .alert time { font-size: 11.5px; color: var(--ink-faint); }
 
+/* A new version is downloaded and waiting. Quieter than a closing alert on
+   purpose - it sits above the answers, says one line, and is never urgent.
+   A snow day is news; a new build is an offer. */
+#updatebar {
+  display: flex; align-items: center; gap: 0 16px; flex-wrap: wrap;
+  border: 1px solid var(--line);
+  background: var(--surface);
+  border-radius: var(--r-md);
+  padding: 4px 12px;
+  font-family: var(--ui); font-size: 13px;
+  color: var(--ink-soft);
+}
+/* Wide enough and the whole thing is one line. On a phone the sentence
+   takes the first row and the two buttons share the second, rather than
+   "Later" being stranded on a line of its own with the gap of a tap target
+   above it. */
+#updatebar span { flex: 1 1 240px; padding: 6px 0; }
+#updatebar button {
+  font: inherit; font-weight: 600;
+  color: var(--accent);
+  background: none; border: 0; padding: 0;
+  cursor: pointer; text-decoration: underline;
+  text-underline-offset: 2px;
+  min-height: 44px;            /* a real tap target on a phone */
+  display: inline-flex; align-items: center;
+}
+#updatebar button:last-of-type { color: var(--ink-faint); text-decoration: none; }
+
 /* ---------------------------------------------------------------- composer */
 
 .composer {
@@ -577,7 +605,7 @@ dialog::backdrop { background: rgba(0,0,0,.45); }
 .way {
   display: flex; align-items: center; gap: 12px; width: 100%;
   padding: 14px 16px; text-align: left; cursor: pointer;
-  background: var(--card); border: 1px solid var(--line); border-radius: 14px;
+  background: var(--surface); border: 1px solid var(--line); border-radius: 14px;
   color: inherit; font: inherit;
 }
 .way:hover { border-color: var(--accent); }
@@ -616,7 +644,7 @@ dialog::backdrop { background: rgba(0,0,0,.45); }
 
 .cal-detail {
   margin-top: 14px; padding: 14px; border-radius: 12px;
-  background: var(--card); border: 1px solid var(--line);
+  background: var(--surface); border: 1px solid var(--line);
 }
 .cal-detail h3 { margin: 0 0 4px; font-size: 14.5px; }
 .cal-detail .kind { font-size: 12.5px; margin: 0 0 8px; }
@@ -701,7 +729,7 @@ dialog::backdrop { background: rgba(0,0,0,.45); }
 .pr-skip { font-size: 12px; color: var(--ink-faint); margin: 3px 0; }
 
 .pr-card {
-  background: var(--card); border: 1px solid var(--line); border-radius: 16px;
+  background: var(--surface); border: 1px solid var(--line); border-radius: 16px;
   padding: 26px 22px; margin-top: 10px; text-align: center;
 }
 .pr-front { font-size: 20px; font-weight: 650; margin: 0; line-height: 1.35; }
@@ -759,6 +787,7 @@ dialog::backdrop { background: rgba(0,0,0,.45); }
 
 <main id="thread" class="gutter">
   <div class="wrap" id="wrap">
+    <div id="updatebar" hidden></div>
     <div id="alerts"></div>
     <section id="glance"></section>
 
